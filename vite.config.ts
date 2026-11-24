@@ -9,7 +9,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'script',
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png', 'og-image.png'],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}']
+      },
       manifest: {
         name: 'Apex Finance',
         short_name: 'Apex',
