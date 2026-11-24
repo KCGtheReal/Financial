@@ -4,13 +4,16 @@ import { LedgerRepository } from '../../db/repository';
 import { UserProfile } from '@contracts/api';
 import { t } from '../../i18n';
 import { AppLogo } from '../common/AppLogo';
+import { isCloudSyncConfigured } from '../../db/supabase';
 import { 
   Sun, 
   Moon, 
   Languages, 
   Check,
   Eye,
-  EyeOff
+  EyeOff,
+  Cloud,
+  HardDrive
 } from 'lucide-react';
 
 export const AuthScreen: React.FC = () => {
@@ -178,6 +181,23 @@ export const AuthScreen: React.FC = () => {
                   <span>{language === 'km' ? 'គណនីថ្មី' : 'Account'}</span>
                 </h1>
               )}
+              {/* Cloud vs Local Sync Mode Indicator */}
+              <div className="mt-2.5 flex items-center gap-1.5 text-xs select-none">
+                {isCloudSyncConfigured ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium text-[11px]">
+                    <Cloud size={11} />
+                    {language === 'km' ? 'ពពក Cloud Sync (ឧបករណ៍ច្រើន)' : 'Cloud Sync (Multi-Device)'}
+                  </span>
+                ) : (
+                  <span
+                    title={language === 'km' ? 'ភ្ជាប់ Supabase ដើម្បីធ្វើសមកាលកម្ម' : 'Connect Supabase in Vercel to sync across multiple phones'}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-800/70 text-zinc-600 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700/60 font-medium text-[11px]"
+                  >
+                    <HardDrive size={11} />
+                    {language === 'km' ? 'ទិន្នន័យលើទូរស័ព្ទនេះ' : 'Local Device Storage'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { db, recalculateAllAccountBalances } from './db';
 import { Transaction, Account, Category, SavedFilter, LedgerFilter, UserProfile } from '@contracts/api';
 import { historyManager } from '../utils/history';
+import { CloudSyncService } from './supabase';
 
 export class LedgerRepository {
   /**
@@ -265,12 +266,35 @@ export class LedgerRepository {
       role: profile.role || (totalUsers === 0 ? 'admin' : 'user'),
       updatedAt: new Date().toISOString(),
     };
+
+    // If Cloud Sync is configured, register to central cloud first
+    if (CloudSyncService.isConfigured()) {
+      const cloudRes = await CloudSyncService.registerUser(finalProfile);
+      if (!cloudRes.success) {
+        throw new Error(cloudRes.error || 'Failed to register account in cloud');
+      }
+    }
+
     await db.settings.put({ key: 'userProfile', value: finalProfile });
     await db.users.put(finalProfile);
   }
 
   static async loginUser(email: string, pinCode: string): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
     const cleanEmail = email.toLowerCase().trim();
+
+    // 1. If Cloud Sync is active, authenticate against cloud first
+    if (CloudSyncService.isConfigured()) {
+      const cloudRes = await CloudSyncService.loginUser(cleanEmail, pinCode);
+      if (cloudRes.success && cloudRes.user) {
+        await db.settings.put({ key: 'userProfile', value: cloudRes.user });
+        await db.users.put(cloudRes.user);
+        return { success: true, user: cloudRes.user };
+      } else if (cloudRes.error && !cloudRes.error.includes('Network')) {
+        return { success: false, error: cloudRes.error };
+      }
+    }
+
+    // 2. Fall back to local Dexie search (offline / local device mode)
     let user = await db.users.where('email').equalsIgnoreCase(cleanEmail).first();
     
     if (!user) {
@@ -281,6 +305,12 @@ export class LedgerRepository {
     }
 
     if (!user) {
+      if (!CloudSyncService.isConfigured()) {
+        return {
+          success: false,
+          error: 'Account not found on this device. (Cloud sync is not connected yet — accounts are stored on the phone where they were created).',
+        };
+      }
       return { success: false, error: 'User with this email not found' };
     }
     if (user.pinCode && user.pinCode !== pinCode) {
@@ -374,6 +404,66 @@ export class LedgerRepository {
       totalAccounts,
       totalTransactions,
       totalCategories,
+    };
+  }
+
+  /**
+   * Device-to-Device Data Transfer: Exports full ledger and user profile as portable JSON.
+   */
+  static async exportAllData(): Promise<string> {
+    const [userProfile, accounts, transactions, categories, savedFilters] = await Promise.all([
+      this.getUserProfile(),
+      db.accounts.toArray(),
+      db.transactions.toArray(),
+      db.categories.toArray(),
+      db.savedFilters.toArray(),
+    ]);
+
+    const backupPayload = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      userProfile,
+      accounts,
+      transactions,
+      categories,
+      savedFilters,
+    };
+
+    return JSON.stringify(backupPayload, null, 2);
+  }
+
+  /**
+   * Device-to-Device Data Transfer: Imports ledger and user profile from portable JSON.
+   */
+  static async importAllData(jsonString: string): Promise<{ success: boolean; accountsCount: number; txCount: number }> {
+    const data = JSON.parse(jsonString);
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid backup file format');
+    }
+
+    if (data.userProfile) {
+      await db.users.put(data.userProfile);
+      await db.settings.put({ key: 'userProfile', value: data.userProfile });
+    }
+
+    if (Array.isArray(data.accounts) && data.accounts.length > 0) {
+      await db.accounts.bulkPut(data.accounts);
+    }
+
+    if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+      await db.transactions.bulkPut(data.transactions);
+    }
+
+    if (Array.isArray(data.categories) && data.categories.length > 0) {
+      await db.categories.bulkPut(data.categories);
+    }
+
+    await recalculateAllAccountBalances();
+
+    return {
+      success: true,
+      accountsCount: Array.isArray(data.accounts) ? data.accounts.length : 0,
+      txCount: Array.isArray(data.transactions) ? data.transactions.length : 0,
     };
   }
 }
