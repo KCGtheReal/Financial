@@ -66,39 +66,42 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4 animate-fade-in">
       {/* Real User Account & Identity Card */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3.5 min-w-0">
+      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3.5">
+        <div className="flex items-center gap-3.5">
           <div 
-            className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0 font-bold text-sm"
+            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0 font-bold text-base sm:text-lg border border-white/10"
             style={{ backgroundColor: userProfile?.avatarColor || '#09090B' }}
           >
-            {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : <User size={20} />}
+            {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : <User size={22} />}
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight truncate">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h2 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight">
                 {userProfile?.name || 'Guest'}
               </h2>
               {userProfile?.isLoggedIn && (
-                <BadgeCheck size={14} className="text-zinc-900 dark:text-white flex-shrink-0" />
+                <BadgeCheck size={16} className="text-zinc-900 dark:text-white flex-shrink-0" />
               )}
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 font-mono">
               {userProfile?.email || 'Not signed in'}
             </p>
-            <span className="text-xs text-zinc-400 font-mono block mt-0.5">
-              {userProfile?.isLoggedIn ? t('realAccountBadge', language) : t('guestMode', language)}
-            </span>
+            <div className="mt-1">
+              <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 font-medium border border-zinc-200/60 dark:border-zinc-700/60">
+                {userProfile?.isLoggedIn ? t('realAccountBadge', language) : t('guestMode', language)}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Profile Action Buttons */}
+        <div className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center gap-2">
           <button
             onClick={() => {
               setAuthMode(userProfile?.isLoggedIn ? 'profile' : 'signup');
               setAuthModalOpen(true);
             }}
-            className="px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+            className="flex-1 py-2 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] border border-zinc-200/80 dark:border-zinc-700/60 shadow-sm"
           >
             {userProfile?.isLoggedIn ? (
               <>
@@ -116,11 +119,12 @@ export const SettingsView: React.FC = () => {
           {userProfile?.isLoggedIn && (
             <button
               onClick={handleSignOut}
-              className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/40 transition-colors shadow-sm"
+              className="py-2 px-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200/80 dark:border-rose-900/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm"
               title={t('signOut', language)}
               aria-label={t('signOut', language)}
             >
-              <LogOut size={14} />
+              <LogOut size={13} />
+              <span>{t('signOut', language)}</span>
             </button>
           )}
         </div>
@@ -132,33 +136,32 @@ export const SettingsView: React.FC = () => {
           {t('adminConsole', language)}
         </span>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <ShieldCheck size={18} />
+        <div
+          onClick={() => setAdminPanelOpen(true)}
+          className="p-4 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.99] transition-all cursor-pointer shadow-sm flex items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <ShieldCheck size={20} />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-zinc-900 dark:text-white">
                   {t('adminConsole', language)}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 flex-shrink-0">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
                   {userProfile?.role === 'admin' ? t('roleAdmin', language) : 'Console'}
                 </span>
               </div>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 block truncate mt-0.5">
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 block mt-0.5 truncate">
                 {t('adminConsoleDesc', language)}
               </span>
             </div>
           </div>
 
-          <button
-            onClick={() => setAdminPanelOpen(true)}
-            className="text-xs px-3.5 py-2 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center gap-1.5 flex-shrink-0"
-          >
-            <span>{t('openAdminPanel', language)}</span>
-            <ChevronRight size={13} />
-          </button>
+          <div className="flex items-center gap-1 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors flex-shrink-0 pr-1">
+            <ChevronRight size={18} />
+          </div>
         </div>
       </div>
 
