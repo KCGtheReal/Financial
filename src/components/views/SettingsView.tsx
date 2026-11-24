@@ -66,28 +66,28 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4">
       {/* Real User Account & Identity Card */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3.5">
+      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm space-y-3.5 select-none">
         <div className="flex items-center gap-3.5">
           <div 
-            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0 font-bold text-base sm:text-lg border border-white/10"
+            className="w-14 h-14 min-w-[3.5rem] min-h-[3.5rem] rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0 font-bold text-xl border border-white/10 ring-1 ring-black/5 dark:ring-white/10"
             style={{ backgroundColor: userProfile?.avatarColor || '#09090B' }}
           >
-            {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : <User size={22} />}
+            {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : <User size={24} />}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h2 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-base font-bold text-zinc-950 dark:text-white tracking-tight truncate">
                 {userProfile?.name || 'Guest'}
               </h2>
               {userProfile?.isLoggedIn && (
-                <BadgeCheck size={16} className="text-zinc-900 dark:text-white flex-shrink-0" />
+                <BadgeCheck size={17} className="text-zinc-950 dark:text-white flex-shrink-0" />
               )}
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 font-mono">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 font-sans">
               {userProfile?.email || 'Not signed in'}
             </p>
-            <div className="mt-1">
-              <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 font-medium border border-zinc-200/60 dark:border-zinc-700/60">
+            <div className="mt-1.5">
+              <span className="inline-flex items-center text-[11px] font-sans px-2.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 font-medium border border-zinc-200/80 dark:border-zinc-700/80">
                 {userProfile?.isLoggedIn ? t('realAccountBadge', language) : t('guestMode', language)}
               </span>
             </div>
@@ -95,36 +95,46 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Profile Action Buttons */}
-        <div className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center gap-2">
+        <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 grid grid-cols-2 gap-2.5">
           <button
             onClick={() => {
               setAuthMode(userProfile?.isLoggedIn ? 'profile' : 'signup');
               setAuthModalOpen(true);
             }}
-            className="flex-1 py-2 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] border border-zinc-200/80 dark:border-zinc-700/60 shadow-sm"
+            className="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200/90 dark:bg-zinc-800/80 dark:hover:bg-zinc-700/80 text-zinc-900 dark:text-zinc-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm"
           >
             {userProfile?.isLoggedIn ? (
               <>
-                <Edit3 size={13} />
+                <Edit3 size={14} className="text-zinc-500 dark:text-zinc-400" />
                 <span>{t('editProfile', language)}</span>
               </>
             ) : (
               <>
-                <UserPlus size={13} />
+                <UserPlus size={14} />
                 <span>{t('signUp', language)}</span>
               </>
             )}
           </button>
 
-          {userProfile?.isLoggedIn && (
+          {userProfile?.isLoggedIn ? (
             <button
               onClick={handleSignOut}
-              className="py-2 px-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200/80 dark:border-rose-900/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm"
+              className="py-2.5 px-3 rounded-xl bg-zinc-50 hover:bg-rose-50 dark:bg-zinc-900/60 dark:hover:bg-rose-950/30 text-zinc-700 hover:text-rose-600 dark:text-zinc-300 dark:hover:text-rose-400 border border-zinc-200/80 hover:border-rose-200 dark:border-zinc-800 dark:hover:border-rose-900/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm"
               title={t('signOut', language)}
               aria-label={t('signOut', language)}
             >
-              <LogOut size={13} />
+              <LogOut size={14} />
               <span>{t('signOut', language)}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setAuthMode('signin');
+                setAuthModalOpen(true);
+              }}
+              className="py-2.5 px-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm"
+            >
+              <span>{t('signIn', language)}</span>
             </button>
           )}
         </div>
