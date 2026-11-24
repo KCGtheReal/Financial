@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   merchant TEXT NOT NULL,
   notes TEXT,
   status TEXT DEFAULT 'cleared',
+  payment_method TEXT DEFAULT 'cash',
   tags TEXT[] DEFAULT '{}',
   is_split BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),

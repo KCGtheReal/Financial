@@ -2,10 +2,23 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Account, Transaction, UserProfile } from '@contracts/api';
 import { db } from './db';
 
-// Read Vercel / Vite environment variables safely
+// Read Vercel / Vite environment variables safely, with built-in default to the configured project
 const metaEnv = (import.meta as any).env || {};
-const supabaseUrl = (metaEnv.VITE_SUPABASE_URL || '') as string;
-const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || '') as string;
+const isTestEnv = Boolean(
+  (typeof process !== 'undefined' && (process.env?.VITEST || process.env?.NODE_ENV === 'test')) ||
+  metaEnv.MODE === 'test' ||
+  metaEnv.VITEST
+);
+
+const defaultSupabaseUrl = 'https://dxscschllqdmewwaaagq.supabase.co';
+const defaultSupabaseAnonKey = 'sb_publishable_r5-toHA19_fRSCTAKEWXqw_-zhy7gu2';
+
+const supabaseUrl = isTestEnv 
+  ? '' 
+  : ((metaEnv.VITE_SUPABASE_URL || defaultSupabaseUrl) as string).trim();
+const supabaseAnonKey = isTestEnv 
+  ? '' 
+  : ((metaEnv.VITE_SUPABASE_ANON_KEY || defaultSupabaseAnonKey) as string).trim();
 
 export const isCloudSyncConfigured = Boolean(
   supabaseUrl && 
@@ -64,6 +77,12 @@ export class CloudSyncService {
 
       if (error) {
         console.error('Supabase registration error:', error);
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          return {
+            success: false,
+            error: 'Cloud database tables not initialized yet. Please run the SQL schema in your Supabase dashboard SQL Editor.'
+          };
+        }
         return { success: false, error: error.message };
       }
 
@@ -90,6 +109,12 @@ export class CloudSyncService {
 
       if (error) {
         console.error('Supabase query error:', error);
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          return {
+            success: false,
+            error: 'Cloud database tables not initialized yet. Please run the SQL schema in your Supabase dashboard SQL Editor.'
+          };
+        }
         return { success: false, error: error.message };
       }
 
@@ -262,6 +287,100 @@ export class CloudSyncService {
       await supabase.from('transactions').delete().eq('id', txId);
     } catch (err) {
       console.error('Error deleting transaction from cloud:', err);
+    }
+  }
+
+  /**
+   * Admin: Fetches all users from Supabase
+   */
+  static async getAllUsers(): Promise<UserProfile[]> {
+    if (!supabase) return [];
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error || !data) {
+        if (error) console.error('Error fetching cloud users:', error);
+        return [];
+      }
+
+      return data.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        pinCode: u.pin_code,
+        role: (u.role || 'user') as 'admin' | 'user',
+        avatar: u.avatar || 'User',
+        avatarColor: u.avatar_color || '#09090B',
+        currency: u.currency || 'USD',
+        isLoggedIn: Boolean(u.is_logged_in),
+        createdAt: u.created_at,
+        updatedAt: u.updated_at
+      }));
+    } catch (err) {
+      console.error('Exception fetching cloud users:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Admin: Deletes user from Supabase (cascades accounts and transactions)
+   */
+  static async deleteUser(userId: string): Promise<void> {
+    if (!supabase) return;
+    try {
+      await supabase.from('users').delete().eq('id', userId);
+    } catch (err) {
+      console.error('Error deleting cloud user:', err);
+    }
+  }
+
+  /**
+   * Admin: Updates user PIN in Supabase
+   */
+  static async updateUserPin(userId: string, newPin: string): Promise<void> {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('users')
+        .update({ pin_code: newPin, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+    } catch (err) {
+      console.error('Error updating cloud user pin:', err);
+    }
+  }
+
+  /**
+   * Admin: Retrieves system metrics across all users from Supabase
+   */
+  static async getSystemMetrics(): Promise<{
+    totalUsers: number;
+    totalAccounts: number;
+    totalTransactions: number;
+    totalCategories: number;
+  } | null> {
+    if (!supabase) return null;
+    try {
+      const [usersRes, accountsRes, txsRes, catsRes] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('accounts').select('*', { count: 'exact', head: true }),
+        supabase.from('transactions').select('*', { count: 'exact', head: true }),
+        supabase.from('categories').select('*', { count: 'exact', head: true }),
+      ]);
+
+      if (usersRes.error) return null;
+
+      return {
+        totalUsers: Math.max(usersRes.count ?? 0, 1),
+        totalAccounts: accountsRes.count ?? 0,
+        totalTransactions: txsRes.count ?? 0,
+        totalCategories: catsRes.count ?? 0,
+      };
+    } catch (err) {
+      console.error('Error fetching cloud metrics:', err);
+      return null;
     }
   }
 }

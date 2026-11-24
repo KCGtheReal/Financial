@@ -336,6 +336,13 @@ export class LedgerRepository {
 
   // Admin & Multi-User Management
   static async getAllUsers(): Promise<UserProfile[]> {
+    if (CloudSyncService.isConfigured()) {
+      const cloudUsers = await CloudSyncService.getAllUsers();
+      if (cloudUsers.length > 0) {
+        await db.users.bulkPut(cloudUsers);
+        return cloudUsers;
+      }
+    }
     const users = await db.users.toArray();
     if (users.length === 0) {
       const current = await this.getUserProfile();
@@ -350,6 +357,9 @@ export class LedgerRepository {
   }
 
   static async deleteUser(userId: string): Promise<void> {
+    if (CloudSyncService.isConfigured()) {
+      await CloudSyncService.deleteUser(userId);
+    }
     await db.users.delete(userId);
     const current = await this.getUserProfile();
     if (current && current.id === userId) {
@@ -358,6 +368,9 @@ export class LedgerRepository {
   }
 
   static async updateUserPin(userId: string, newPin: string): Promise<void> {
+    if (CloudSyncService.isConfigured()) {
+      await CloudSyncService.updateUserPin(userId, newPin);
+    }
     const user = await db.users.get(userId);
     if (!user) throw new Error('User not found');
     const updated: UserProfile = {
@@ -393,6 +406,10 @@ export class LedgerRepository {
     totalTransactions: number;
     totalCategories: number;
   }> {
+    if (CloudSyncService.isConfigured()) {
+      const cloudMetrics = await CloudSyncService.getSystemMetrics();
+      if (cloudMetrics) return cloudMetrics;
+    }
     const [totalUsers, totalAccounts, totalTransactions, totalCategories] = await Promise.all([
       db.users.count(),
       db.accounts.count(),
