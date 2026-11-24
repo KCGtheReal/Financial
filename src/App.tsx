@@ -45,6 +45,23 @@ export const App: React.FC = () => {
       });
   }, []);
 
+  // Detect iOS and Standalone PWA environment to clear status bar blur
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const isStandalone = (window.navigator as any).standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches;
+
+      if (isIOS) {
+        document.documentElement.classList.add('is-ios');
+      }
+      if (isStandalone) {
+        document.documentElement.classList.add('is-standalone');
+      }
+    }
+  }, []);
+
   // Instantly reset scroll to top whenever switching tabs
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
