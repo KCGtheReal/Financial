@@ -25,7 +25,7 @@ export const CategoriesView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4 animate-fade-in">
+    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4">
       {/* Category Type Segmented Control (Expense vs Income) */}
       <div className="grid grid-cols-2 gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-800">
         <button

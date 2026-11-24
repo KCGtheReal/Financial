@@ -160,7 +160,7 @@ export const TransactionTable: React.FC = () => {
       ) : (
         <>
           {/* Mobile Native Cards Layout (md:hidden) */}
-          <div className="space-y-2 md:hidden animate-fade-in">
+          <div className="space-y-2 md:hidden">
             {filteredTransactions.map((tx) => (
               <TransactionCard
                 key={tx.id}

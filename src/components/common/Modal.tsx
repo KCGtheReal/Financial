@@ -247,7 +247,7 @@ export const Modal: React.FC<ModalProps> = ({
     ? 'sheet-exit'
     : !hasEntered
     ? 'sheet-enter'
-    : '';
+    : 'sheet-base';
 
   const modalNode = (
     <div

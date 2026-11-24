@@ -167,16 +167,19 @@
 @keyframes tabFadeSlide {
   0% {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translate3d(0, 4px, 0);
   }
   100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 .animate-tab-switch {
   animation: tabFadeSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* ==========================================================================
@@ -184,21 +187,32 @@
    GPU-composited transforms with bezier curves for native mobile feel
    ========================================================================== */
 
+.sheet-base {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 @keyframes sheetSlideUp {
   0% {
     transform: translateY(100%);
+    transform: translate3d(0, 100%, 0);
   }
   100% {
     transform: translateY(0%);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes sheetSlideDown {
   0% {
     transform: translateY(0%);
+    transform: translate3d(0, 0, 0);
   }
   100% {
     transform: translateY(100%);
+    transform: translate3d(0, 100%, 0);
   }
 }
 
@@ -223,21 +237,27 @@
 .sheet-enter {
   animation: sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .sheet-exit {
-  animation: sheetSlideDown 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: sheetSlideDown 0.22s cubic-bezier(0.25, 1, 0.5, 1) forwards;
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .backdrop-enter {
   animation: backdropFadeIn 0.26s ease-out forwards;
   will-change: opacity;
+  transform: translateZ(0);
 }
 
 .backdrop-exit {
-  animation: backdropFadeOut 0.22s ease-in forwards;
+  animation: backdropFadeOut 0.2s ease-in forwards;
   will-change: opacity;
+  transform: translateZ(0);
 }
 
 /* ==========================================================================

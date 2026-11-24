@@ -815,7 +815,7 @@ export const TransactionModal: React.FC = () => {
         {/* Slide-Up Number Pad Panel */}
         <div
           data-testid="number-pad-panel"
-          className={`fixed bottom-0 left-0 right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-full sm:max-w-md z-40 bg-[#F4F5F7] dark:bg-[#151518] border-t border-zinc-200/80 dark:border-zinc-800 rounded-t-[32px] shadow-2xl transition-transform duration-300 ease-out select-none ${
+          className={`fixed bottom-0 left-0 right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-full sm:max-w-md z-40 bg-[#F4F5F7] dark:bg-[#151518] border-t border-zinc-200/80 dark:border-zinc-800 rounded-t-[32px] shadow-2xl transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu will-change-transform select-none ${
             isKeypadOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'
           }`}
           onClick={(e) => e.stopPropagation()}

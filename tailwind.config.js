@@ -36,12 +36,12 @@ export default {
           '100%': { opacity: '1' },
         },
         slideUp: {
-          '0%': { transform: 'translateY(100%)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
+          '0%': { transform: 'translate3d(0, 100%, 0)', opacity: '0' },
+          '100%': { transform: 'translate3d(0, 0, 0)', opacity: '1' },
         },
         scaleIn: {
-          '0%': { transform: 'scale(0.96)', opacity: '0' },
-          '100%': { transform: 'scale(1)', opacity: '1' },
+          '0%': { transform: 'scale3d(0.96, 0.96, 1)', opacity: '0' },
+          '100%': { transform: 'scale3d(1, 1, 1)', opacity: '1' },
         },
       },
     },

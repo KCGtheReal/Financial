@@ -64,7 +64,7 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4 animate-fade-in">
+    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4">
       {/* Real User Account & Identity Card */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3.5">
         <div className="flex items-center gap-3.5">

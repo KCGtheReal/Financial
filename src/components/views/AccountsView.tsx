@@ -43,7 +43,7 @@ export const AccountsView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4 animate-fade-in">
+    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4">
       {/* Net Balance Minimalist Hero Card */}
       <div className="p-5 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
         <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block mb-1 font-semibold">
