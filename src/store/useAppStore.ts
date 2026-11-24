@@ -66,6 +66,26 @@ interface AppState {
 const initialTheme = (localStorage.getItem('apex_theme') as 'dark' | 'light') || 'dark';
 const initialLang = (localStorage.getItem('apex_lang') as Language) || 'en';
 
+export function syncThemeColor(theme: 'dark' | 'light') {
+  if (typeof document === 'undefined') return;
+  const color = theme === 'dark' ? '#000000' : '#FAFAFA';
+
+  const metas = document.querySelectorAll('meta[name="theme-color"]');
+  if (metas.length > 0) {
+    metas.forEach((meta) => meta.setAttribute('content', color));
+  } else {
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = color;
+    document.head.appendChild(meta);
+  }
+
+  const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (appleMeta) {
+    appleMeta.setAttribute('content', theme === 'dark' ? 'black' : 'default');
+  }
+}
+
 if (typeof document !== 'undefined') {
   if (initialTheme === 'dark') {
     document.documentElement.classList.add('dark');
@@ -73,6 +93,7 @@ if (typeof document !== 'undefined') {
     document.documentElement.classList.remove('dark');
   }
   document.documentElement.lang = initialLang;
+  syncThemeColor(initialTheme);
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -87,6 +108,7 @@ export const useAppStore = create<AppState>((set) => ({
     } else {
       document.documentElement.classList.remove('dark');
     }
+    syncThemeColor(theme);
     set({ theme });
   },
   

@@ -121,13 +121,13 @@ export const AuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col justify-between font-sans select-none antialiased relative overflow-x-hidden bg-gradient-to-b from-zinc-200 via-zinc-100 to-zinc-50 dark:from-black dark:via-[#09090b] dark:to-zinc-950 transition-colors duration-500">
-      {/* Ambient Black & White Lighting Effects that adapt to theme */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-zinc-400/[0.18] dark:bg-white/[0.03] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
-      <div className="absolute top-1/4 left-0 w-80 h-80 bg-zinc-300/[0.22] dark:bg-zinc-700/[0.04] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
+    <div className="min-h-screen w-full flex flex-col justify-between font-sans select-none antialiased relative overflow-x-hidden bg-[#FAFAFA] dark:bg-black transition-colors duration-500">
+      {/* Ambient Lighting Effects placed lower to never disrupt top status bar continuity */}
+      <div className="absolute top-20 right-0 w-96 h-96 bg-zinc-300/[0.2] dark:bg-zinc-800/[0.15] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
+      <div className="absolute top-1/3 left-0 w-80 h-80 bg-zinc-200/[0.25] dark:bg-zinc-900/[0.2] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
 
-      {/* Top Hero Container (Full Width with Theme-Reactive B&W Gradient) */}
-      <div className="w-full flex-shrink-0 pt-6 sm:pt-8 pb-8 sm:pb-10 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-300/70 via-zinc-100/40 to-transparent dark:from-zinc-900/90 dark:via-black/80 dark:to-transparent transition-colors duration-500">
+      {/* Top Hero Container (Seamless Edge-to-Edge with Android / iOS Safe Area) */}
+      <div className="w-full flex-shrink-0 pt-[max(env(safe-area-inset-top),1.5rem)] pb-8 sm:pb-10 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
         <div className="w-full max-w-xl mx-auto flex flex-col justify-between">
           {/* Top Header Bar */}
           <header className="flex items-center justify-between mb-8 sm:mb-12">

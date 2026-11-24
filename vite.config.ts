@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'Apex Finance',
         short_name: 'Apex',
         description: 'Sovereign local-first personal finance and multi-currency cash flow tracking.',
-        theme_color: '#09090B',
-        background_color: '#09090B',
+        theme_color: '#000000',
+        background_color: '#000000',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
