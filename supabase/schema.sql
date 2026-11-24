@@ -97,3 +97,13 @@ CREATE POLICY "Public access for transactions" ON public.transactions FOR ALL US
 
 DROP POLICY IF EXISTS "Public access for categories" ON public.categories;
 CREATE POLICY "Public access for categories" ON public.categories FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. GRANT TABLE PRIVILEGES TO CLIENT ROLES (anon & authenticated)
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated;
