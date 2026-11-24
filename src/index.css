@@ -1,0 +1,260 @@
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --navbar-height: 5rem;
+    --tab-bottom-gap: 2rem;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Dark Mode */
+  html.dark {
+    color-scheme: dark;
+    background-color: #09090B;
+    color: #F4F4F5;
+  }
+
+  /* Light Mode */
+  html:not(.dark) {
+    color-scheme: light;
+    background-color: #FAFAFA;
+    color: #09090B;
+  }
+
+  /* Universal Kantumruy Pro enforcement */
+  *,
+  *::before,
+  *::after,
+  body,
+  button,
+  input,
+  select,
+  textarea,
+  span,
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  label,
+  kbd {
+    font-family: 'Kantumruy Pro', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Explicit Placeholder font inheritance */
+  input::placeholder,
+  textarea::placeholder {
+    font-family: 'Kantumruy Pro', 'Inter', system-ui, -apple-system, sans-serif !important;
+    font-feature-settings: normal;
+  }
+
+  /* Strict Khmer Language Override: forces 100% Kantumruy Pro across every element */
+  [lang="km"],
+  [lang="km"] *,
+  [lang="km"] *::before,
+  [lang="km"] *::after,
+  [lang="km"] input,
+  [lang="km"] input::placeholder,
+  [lang="km"] textarea,
+  [lang="km"] textarea::placeholder,
+  [lang="km"] button,
+  [lang="km"] select,
+  [lang="km"] kbd,
+  [lang="km"] span,
+  [lang="km"] p,
+  [lang="km"] div,
+  [lang="km"] .font-mono,
+  [lang="km"] .font-sans {
+    font-family: 'Kantumruy Pro', sans-serif !important;
+  }
+
+  body {
+    @apply antialiased transition-colors duration-200;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    overscroll-behavior-y: none;
+  }
+}
+
+/* Tabular figures for ledger numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Monospace with Kantumruy Pro fallback */
+.font-mono {
+  font-family: 'JetBrains Mono', 'Kantumruy Pro', monospace;
+}
+
+/* Custom Scrollbar for Minimalist B&W aesthetic */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3F3F46;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #27272A;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #71717A;
+}
+
+/* Privacy Blur Style */
+.privacy-blur {
+  filter: blur(8px);
+  user-select: none;
+  transition: filter 0.2s ease-in-out;
+}
+
+/* Safe area padding utilities */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+}
+
+/* Bottom Tab Gap: navbar height + explicit 2rem gap + safe area */
+.pb-nav-safe {
+  padding-bottom: calc(var(--navbar-height, 5rem) + var(--tab-bottom-gap, 2rem) + env(safe-area-inset-bottom, 0px));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+}
+
+/* Smooth Tab Switching Animation */
+@keyframes tabFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-switch {
+  animation: tabFadeSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ==========================================================================
+   Bottom Sheet Native Slide & Backdrop Animations
+   GPU-composited transforms with bezier curves for native mobile feel
+   ========================================================================== */
+
+@keyframes sheetSlideUp {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0%);
+  }
+}
+
+@keyframes sheetSlideDown {
+  0% {
+    transform: translateY(0%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes backdropFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.sheet-enter {
+  animation: sheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform;
+}
+
+.sheet-exit {
+  animation: sheetSlideDown 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
+  will-change: transform;
+}
+
+.backdrop-enter {
+  animation: backdropFadeIn 0.26s ease-out forwards;
+  will-change: opacity;
+}
+
+.backdrop-exit {
+  animation: backdropFadeOut 0.22s ease-in forwards;
+  will-change: opacity;
+}
+
+/* ==========================================================================
+   Auth Screen Mode Switching Animations
+   GPU-composited directional slide & cross-fade for Sign In <-> Create Account
+   ========================================================================== */
+
+@keyframes authSlideForward {
+  0% {
+    opacity: 0;
+    transform: translate3d(28px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes authSlideBackward {
+  0% {
+    opacity: 0;
+    transform: translate3d(-28px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-auth-slide-forward {
+  animation: authSlideForward 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-auth-slide-backward {
+  animation: authSlideBackward 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}

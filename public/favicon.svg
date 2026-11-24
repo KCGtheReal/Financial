@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="apexBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181B"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#apexBg)"/>
+  <rect x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="#27272A" stroke-width="3"/>
+  <path d="M 256 104 L 256 184 L 228 262 L 256 262 L 256 312 L 214 312 L 170 404 L 104 404 Z" fill="#FFFFFF"/>
+  <path d="M 256 104 L 408 404 L 342 404 L 298 312 L 256 312 L 256 262 L 284 262 L 256 184 Z" fill="#D4D4D8"/>
+</svg>

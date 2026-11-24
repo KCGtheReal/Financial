@@ -1,0 +1,431 @@
+import React, { useState } from 'react';
+import { 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  Sun, 
+  Moon, 
+  Languages, 
+  Check, 
+  KeyRound,
+  User,
+  BadgeCheck,
+  Edit3,
+  UserPlus,
+  LogOut,
+  Trash2,
+  ShieldCheck,
+  ChevronRight
+} from 'lucide-react';
+import { useAppStore } from '../../store/useAppStore';
+import { db } from '../../db/db';
+import { LedgerRepository } from '../../db/repository';
+import { t } from '../../i18n';
+import { Modal } from '../common/Modal';
+import { AppLogo } from '../common/AppLogo';
+
+export const SettingsView: React.FC = () => {
+  const {
+    theme,
+    setTheme,
+    language,
+    setLanguage,
+    isPrivacyMode,
+    togglePrivacyMode,
+    setIsAppLocked,
+    pinCode,
+    setPinCode,
+    userProfile,
+    setAuthModalOpen,
+    setAuthMode,
+    setAdminPanelOpen,
+  } = useAppStore();
+
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [pinSuccess, setPinSuccess] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+
+  const handleUpdatePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPin.length === 4 && /^\d+$/.test(newPin)) {
+      setPinCode(newPin);
+      setPinSuccess(true);
+      setTimeout(() => {
+        setPinSuccess(false);
+        setIsPinModalOpen(false);
+        setNewPin('');
+      }, 1000);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (confirm(t('signOutConfirm', language))) {
+      const loggedOut = await LedgerRepository.logoutUser();
+      useAppStore.getState().setUserProfile(loggedOut);
+    }
+  };
+
+  const handleClearLedgerData = async () => {
+    if (confirm('Are you sure you want to clear all your transactions and accounts? This cannot be undone.')) {
+      await db.transactions.clear();
+      await db.accounts.clear();
+      await db.savedFilters.clear();
+      setResetMessage('All transactions and accounts cleared successfully.');
+      setTimeout(() => setResetMessage(''), 3000);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto px-4 py-4 pb-nav-safe space-y-4 animate-fade-in">
+      {/* Real User Account & Identity Card */}
+      <div className="p-4 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div 
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm flex-shrink-0 font-bold text-sm"
+            style={{ backgroundColor: userProfile?.avatarColor || '#09090B' }}
+          >
+            {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : <User size={20} />}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight truncate">
+                {userProfile?.name || 'Guest'}
+              </h2>
+              {userProfile?.isLoggedIn && (
+                <BadgeCheck size={14} className="text-zinc-900 dark:text-white flex-shrink-0" />
+              )}
+            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+              {userProfile?.email || 'Not signed in'}
+            </p>
+            <span className="text-xs text-zinc-400 font-mono block mt-0.5">
+              {userProfile?.isLoggedIn ? t('realAccountBadge', language) : t('guestMode', language)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => {
+              setAuthMode(userProfile?.isLoggedIn ? 'profile' : 'signup');
+              setAuthModalOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+          >
+            {userProfile?.isLoggedIn ? (
+              <>
+                <Edit3 size={13} />
+                <span>{t('editProfile', language)}</span>
+              </>
+            ) : (
+              <>
+                <UserPlus size={13} />
+                <span>{t('signUp', language)}</span>
+              </>
+            )}
+          </button>
+
+          {userProfile?.isLoggedIn && (
+            <button
+              onClick={handleSignOut}
+              className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/40 transition-colors shadow-sm"
+              title={t('signOut', language)}
+              aria-label={t('signOut', language)}
+            >
+              <LogOut size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Admin Console Card */}
+      <div className="space-y-2">
+        <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
+          {t('adminConsole', language)}
+        </span>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <ShieldCheck size={18} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold text-zinc-900 dark:text-white truncate">
+                  {t('adminConsole', language)}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 flex-shrink-0">
+                  {userProfile?.role === 'admin' ? t('roleAdmin', language) : 'Console'}
+                </span>
+              </div>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 block truncate mt-0.5">
+                {t('adminConsoleDesc', language)}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setAdminPanelOpen(true)}
+            className="text-xs px-3.5 py-2 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center gap-1.5 flex-shrink-0"
+          >
+            <span>{t('openAdminPanel', language)}</span>
+            <ChevronRight size={13} />
+          </button>
+        </div>
+      </div>
+
+      {resetMessage && (
+        <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium text-center animate-fade-in">
+          {resetMessage}
+        </div>
+      )}
+
+      {/* Security & Privacy Section */}
+      <div className="space-y-2">
+        <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
+          {t('securityPrivacy', language)}
+        </span>
+
+        <div className="rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/80 overflow-hidden shadow-sm">
+          {/* Privacy Blur Toggle */}
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+                {isPrivacyMode ? <EyeOff size={16} /> : <Eye size={16} />}
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
+                  {t('privacyMode', language)}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('privacyBlurDesc', language)}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={togglePrivacyMode}
+              className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${
+                isPrivacyMode ? 'bg-zinc-950 dark:bg-white' : 'bg-zinc-300 dark:bg-zinc-700'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full shadow-md transition-transform ${
+                  isPrivacyMode 
+                    ? 'translate-x-6 bg-white dark:bg-zinc-950' 
+                    : 'translate-x-0 bg-white dark:bg-zinc-300'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Change PIN Code */}
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+                <KeyRound size={16} />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
+                  {t('appPinLock', language)}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                  {t('currentPin', language)}: {pinCode}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsPinModalOpen(true)}
+              className="text-xs px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold transition-colors"
+            >
+              {t('changePin', language)}
+            </button>
+          </div>
+
+          {/* Instant Lock */}
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+                <Lock size={16} />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
+                  {t('lockNow', language)}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('lockTerminalDesc', language)}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsAppLocked(true)}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold transition-colors border border-zinc-200 dark:border-zinc-700"
+            >
+              {t('lockTerminalBtn', language)}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Preferences Section */}
+      <div className="space-y-2">
+        <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
+          {t('preferences', language)}
+        </span>
+
+        <div className="rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/80 overflow-hidden shadow-sm">
+          {/* Language Switch */}
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+                <Languages size={16} />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white block font-['Kantumruy_Pro']">
+                  {language === 'km' ? 'ភាសា' : 'Language'}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 font-['Kantumruy_Pro']">
+                  {language === 'en' ? 'English' : 'ភាសាខ្មែរ'}
+                </span>
+              </div>
+            </div>
+            <div className="flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1 border border-zinc-200 dark:border-zinc-700">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors ${
+                  language === 'en' ? 'bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-bold' : 'text-zinc-500 dark:text-zinc-400'
+                }`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLanguage('km')}
+                className={`px-3 py-1 text-xs rounded-lg font-semibold transition-colors font-['Kantumruy_Pro'] ${
+                  language === 'km' ? 'bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-bold' : 'text-zinc-500 dark:text-zinc-400'
+                }`}
+              >
+                ខ្មែរ
+              </button>
+            </div>
+          </div>
+
+          {/* Theme Switch (Dark / Light) */}
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+                {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
+                  {t('themeAppearance', language)}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 capitalize">
+                  {theme === 'dark' ? t('darkMode', language) : t('lightMode', language)}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold transition-all active:scale-95 shadow-sm"
+            >
+              {theme === 'dark' ? t('switchLight', language) : t('switchDark', language)}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Data Management Section */}
+      <div className="space-y-2">
+        <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
+          {t('dataStorage', language)}
+        </span>
+
+        <div className="rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+          {/* Clear Personal Ledger Data */}
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+                <Trash2 size={16} />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
+                  {t('clearLedgerData', language)}
+                </span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {t('clearLedgerDesc', language)}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleClearLedgerData}
+              className="text-xs px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-semibold transition-colors border border-rose-200 dark:border-rose-900/40"
+            >
+              {t('clearBtn', language)}
+            </button>
+          </div>
+        </div>
+
+        {/* Brand & App Info Card */}
+        <div className="pt-4 pb-2 flex flex-col items-center justify-center text-center select-none">
+          <AppLogo size={36} className="mb-2" />
+          <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-tight">
+            Apex Finance
+          </span>
+          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+            Version 1.0.0 • Local-First Sovereign Wealth PWA
+          </span>
+        </div>
+      </div>
+
+      {/* Change PIN Modal */}
+      <Modal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        title={t('changePinTitle', language)}
+        subtitle={t('changePinDesc', language)}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleUpdatePin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              {t('enterNewPin', language)}
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]{4}"
+              maxLength={4}
+              required
+              placeholder="••••"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-center font-mono text-2xl tracking-widest text-zinc-900 dark:text-white outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
+            />
+          </div>
+
+          {pinSuccess && (
+            <div className="text-center text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-center gap-1">
+              <Check size={14} /> {t('pinUpdated', language)}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsPinModalOpen(false)}
+              className="px-4 py-2 text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+            >
+              {t('cancel', language)}
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold"
+            >
+              {t('save', language)}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
