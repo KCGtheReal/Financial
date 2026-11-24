@@ -70,7 +70,7 @@ export const App: React.FC = () => {
     return (
       <div
         lang={language}
-        className={`h-[100dvh] w-full overflow-hidden bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col font-sans select-text transition-colors duration-200 ${
+        className={`h-[100dvh] w-full overflow-hidden bg-[#FAFAFA] dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col font-sans select-none transition-colors duration-200 ${
           language === 'km' ? 'font-khmer' : ''
         }`}
       >
@@ -82,7 +82,7 @@ export const App: React.FC = () => {
   return (
     <div
       lang={language}
-      className={`min-h-screen bg-[#FAFAFA] dark:bg-[#09090B] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans select-text transition-colors duration-200 ${
+      className={`min-h-screen bg-[#FAFAFA] dark:bg-[#09090B] text-zinc-900 dark:text-zinc-100 flex flex-col font-sans select-none transition-colors duration-200 ${
         language === 'km' ? 'font-khmer' : ''
       } ${isPrivacyMode ? 'privacy-active' : ''}`}
     >

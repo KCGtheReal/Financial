@@ -402,7 +402,7 @@ export const TransactionModal: React.FC = () => {
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
               onFocus={() => setIsKeypadOpen(true)}
-              className="w-full bg-transparent text-5xl sm:text-6xl font-bold tracking-tight text-center text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700 outline-none cursor-pointer caret-transparent select-text border-none focus:outline-none focus:ring-0"
+              className="w-full bg-transparent text-5xl sm:text-6xl font-bold tracking-tight text-center text-zinc-900 dark:text-white placeholder:text-zinc-300 dark:placeholder:text-zinc-700 outline-none cursor-pointer caret-transparent select-none border-none focus:outline-none focus:ring-0"
             />
           </div>
           <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mt-1">

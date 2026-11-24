@@ -63,7 +63,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
   return (
     <div
       onClick={() => toggleSelectTx(tx.id)}
-      className={`p-3.5 rounded-2xl border transition-all duration-150 cursor-pointer select-text active:scale-[0.99] space-y-2.5 ${
+      className={`p-3.5 rounded-2xl border transition-all duration-150 cursor-pointer select-none active:scale-[0.99] space-y-2.5 ${
         isSelected
           ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-900 dark:border-zinc-100 ring-1 ring-zinc-900 dark:ring-zinc-100'
           : 'bg-white dark:bg-[#121214] border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-sm'

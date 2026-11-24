@@ -14,27 +14,18 @@
     --tab-bottom-gap: 2rem;
   }
 
-  html {
+  html,
+  body {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    -webkit-user-select: text;
-    user-select: text;
-  }
-
-  /* Global Text Selection Styling */
-  ::selection {
-    background-color: #18181b;
-    color: #ffffff;
-  }
-
-  .dark ::selection {
-    background-color: #f4f4f5;
-    color: #09090b;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   input, textarea, [contenteditable="true"] {
-    -webkit-user-select: text !important;
-    user-select: text !important;
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   /* Dark Mode */

@@ -118,7 +118,7 @@ export const AuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between font-sans select-text antialiased relative overflow-hidden bg-[#FAFAFA] dark:bg-black transition-colors duration-500 overscroll-none">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between font-sans select-none antialiased relative overflow-hidden bg-[#FAFAFA] dark:bg-black transition-colors duration-500 overscroll-none">
       {/* Ambient Lighting Effects placed lower to never disrupt top status bar continuity */}
       <div className="absolute top-48 right-0 w-96 h-96 bg-zinc-300/[0.2] dark:bg-zinc-800/[0.15] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
       <div className="absolute top-1/2 left-0 w-80 h-80 bg-zinc-200/[0.25] dark:bg-zinc-900/[0.2] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
