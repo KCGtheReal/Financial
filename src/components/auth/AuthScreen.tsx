@@ -121,16 +121,16 @@ export const AuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col justify-between font-sans select-none antialiased relative overflow-x-hidden bg-[#FAFAFA] dark:bg-black transition-colors duration-500">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between font-sans select-none antialiased relative overflow-hidden bg-[#FAFAFA] dark:bg-black transition-colors duration-500 overscroll-none">
       {/* Ambient Lighting Effects placed lower to never disrupt top status bar continuity */}
       <div className="absolute top-20 right-0 w-96 h-96 bg-zinc-300/[0.2] dark:bg-zinc-800/[0.15] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
       <div className="absolute top-1/3 left-0 w-80 h-80 bg-zinc-200/[0.25] dark:bg-zinc-900/[0.2] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
 
       {/* Top Hero Container (Seamless Edge-to-Edge with Android / iOS Safe Area) */}
-      <div className="w-full flex-shrink-0 pt-[max(calc(env(safe-area-inset-top,0px)+1rem),4rem)] pb-8 sm:pb-10 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
+      <div className="w-full flex-shrink-0 pt-[max(calc(env(safe-area-inset-top,0px)+0.75rem),3rem)] pb-4 sm:pb-6 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
         <div className="w-full max-w-xl mx-auto flex flex-col justify-between">
           {/* Top Header Bar */}
-          <header className="flex items-center justify-between mb-8 sm:mb-12">
+          <header className="flex items-center justify-between mb-4 sm:mb-8">
             <div className="flex items-center gap-3">
               <AppLogo size={36} />
               <span className="font-bold text-base tracking-tight text-zinc-950 dark:text-white font-sans transition-colors duration-300">
@@ -204,8 +204,8 @@ export const AuthScreen: React.FC = () => {
       </div>
 
       {/* Bottom Sheet Card Container (Full Width Edge-to-Edge with Inner Centering) */}
-      <div className="w-full flex-1 flex flex-col relative z-10">
-        <div className="w-full flex-1 bg-gradient-to-b from-white via-zinc-50 to-zinc-100 dark:from-[#18181b] dark:via-[#121214] dark:to-[#0a0a0c] rounded-t-[36px] sm:rounded-t-[48px] px-6 py-8 sm:px-12 md:px-16 lg:px-24 flex flex-col justify-between shadow-[0_-20px_50px_rgba(0,0,0,0.08)] dark:shadow-[0_-20px_50px_rgba(0,0,0,0.6)] border-t border-zinc-200/80 dark:border-zinc-800/80 transition-colors duration-500">
+      <div className="w-full flex-1 flex flex-col relative z-10 min-h-0">
+        <div className="w-full flex-1 bg-gradient-to-b from-white via-zinc-50 to-zinc-100 dark:from-[#18181b] dark:via-[#121214] dark:to-[#0a0a0c] rounded-t-[32px] sm:rounded-t-[44px] px-6 pt-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:px-12 md:px-16 lg:px-24 flex flex-col justify-between shadow-[0_-20px_50px_rgba(0,0,0,0.08)] dark:shadow-[0_-20px_50px_rgba(0,0,0,0.6)] border-t border-zinc-200/80 dark:border-zinc-800/80 transition-colors duration-500 overflow-y-auto">
           <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-between">
             <div>
               {/* Error Feedback */}
@@ -381,7 +381,7 @@ export const AuthScreen: React.FC = () => {
             <div className="overflow-hidden">
               <div
                 key={`footer-${mode}`}
-                className={`pt-8 pb-3 text-center text-xs text-zinc-500 dark:text-zinc-400 ${
+                className={`pt-3 pb-1 text-center text-xs text-zinc-500 dark:text-zinc-400 ${
                   switchDirection === 'forward' ? 'animate-auth-slide-forward' : 'animate-auth-slide-backward'
                 }`}
               >
