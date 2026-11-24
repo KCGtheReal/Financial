@@ -50,6 +50,7 @@
 | **QA-02**    | `@reviewer` | Full verification test suite: `npm test` & `npm run build` | DONE | 61/61 tests passing (7 test suites), 0 TypeScript errors, 0 build warnings |
 | **FONT-02**  | `@designer` / `@frontend` | Global Typography Hierarchy Harmonization: reconciled stark font size contrasts across screens — standardized form inputs to `text-sm font-semibold`, primary CTA buttons to `h-12 font-bold text-sm`, hero amounts to `text-5xl sm:text-6xl`, auth headlines to `text-2xl sm:text-3xl`, and elevated microscopic `text-[10px]` / `text-[11px]` subtext and descriptions across Settings, Ledger, Accounts, and Admin to legible `text-xs` | DONE | 61/61 tests pass, 0 build errors, unified typography scale |
 | **LOGO-01**  | `@designer` / `@frontend` | Brand Identity & Production PWA Assets: designed luxury chiseled architectural Apex logo mark; generated complete multi-resolution asset suite (`favicon.svg`, `favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`, `pwa-192x192.png`, `pwa-512x512.png`, `pwa-maskable-512x512.png`, `og-image.png`); integrated `AppLogo.tsx` component into `Header`, `AuthScreen`, `PinLockScreen`, and `SettingsView`; configured Web App Manifest and OpenGraph metadata in `index.html` and `vite.config.ts` | DONE | 61/61 tests pass, 0 build errors, full PWA icon verification |
+| **SYNC-01**  | `@architect` / `@backend` | Multi-Device Cloud Sync & Cross-Phone Data Transfer: resolved isolated IndexedDB device storage limitation; built hybrid cloud sync engine with Supabase (`src/db/supabase.ts`, `supabase/schema.sql`, `.env.example`); updated `LedgerRepository` to authenticate and pull accounts/transactions from the cloud; added instant device-to-device backup export and import in `SettingsView.tsx` | DONE | 61/61 tests pass, 0 build errors, verified multi-device architecture |
 
 ---
 
@@ -73,3 +74,4 @@
 - [x] Zero TypeScript errors, zero build errors, 100% unit & integration tests passing (61/61 tests)
 - [x] Harmonized Global Typography: coherent font scale across all views, eliminating oversized auth/modal inputs and microscopic list labels
 - [x] Production Brand Identity & PWA Icons: custom architectural Apex logo with full suite of favicons, Android adaptive icons, iOS touch icons, and social sharing cards (`og-image.png`)
+- [x] Multi-Device Architecture: dual support for instant device-to-device file transfer and automated Supabase cloud database sync across unlimited phones and browsers
