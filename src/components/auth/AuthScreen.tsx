@@ -127,7 +127,7 @@ export const AuthScreen: React.FC = () => {
       <div className="absolute top-1/3 left-0 w-80 h-80 bg-zinc-200/[0.25] dark:bg-zinc-900/[0.2] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
 
       {/* Top Hero Container (Seamless Edge-to-Edge with Android / iOS Safe Area) */}
-      <div className="w-full flex-shrink-0 pt-[max(env(safe-area-inset-top),1.5rem)] pb-8 sm:pb-10 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
+      <div className="w-full flex-shrink-0 pt-[max(calc(env(safe-area-inset-top,0px)+1rem),4rem)] pb-8 sm:pb-10 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
         <div className="w-full max-w-xl mx-auto flex flex-col justify-between">
           {/* Top Header Bar */}
           <header className="flex items-center justify-between mb-8 sm:mb-12">
@@ -142,7 +142,7 @@ export const AuthScreen: React.FC = () => {
               {/* Language Toggle */}
               <button
                 onClick={() => setLanguage(language === 'en' ? 'km' : 'en')}
-                className="h-9 px-3 rounded-full bg-white/90 dark:bg-zinc-900/80 border border-zinc-300 dark:border-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 transition-all hover:bg-white dark:hover:border-zinc-700 hover:text-zinc-950 dark:hover:text-white cursor-pointer shadow-sm backdrop-blur-sm"
+                className="h-9 px-3 rounded-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 transition-all hover:bg-white dark:hover:border-zinc-700 hover:text-zinc-950 dark:hover:text-white cursor-pointer shadow-sm"
                 aria-label="Toggle Language"
               >
                 <Languages size={14} className="text-zinc-600 dark:text-zinc-400" />
@@ -154,7 +154,7 @@ export const AuthScreen: React.FC = () => {
               {/* Theme Toggle */}
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="w-9 h-9 rounded-full bg-white/90 dark:bg-zinc-900/80 border border-zinc-300 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 flex items-center justify-center transition-all hover:bg-white dark:hover:border-zinc-700 hover:text-zinc-950 dark:hover:text-white cursor-pointer shadow-sm backdrop-blur-sm"
+                className="w-9 h-9 rounded-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 flex items-center justify-center transition-all hover:bg-white dark:hover:border-zinc-700 hover:text-zinc-950 dark:hover:text-white cursor-pointer shadow-sm"
                 aria-label="Toggle Theme"
               >
                 {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}

@@ -82,7 +82,7 @@ export function syncThemeColor(theme: 'dark' | 'light') {
 
   const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
   if (appleMeta) {
-    appleMeta.setAttribute('content', theme === 'dark' ? 'black' : 'default');
+    appleMeta.setAttribute('content', 'black-translucent');
   }
 }
 
