@@ -153,18 +153,6 @@
   padding-top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
 }
 
-/* iOS & Standalone PWA clearance: guarantees the header is pushed below the iOS status bar blur scrim */
-@supports (-webkit-touch-callout: none) {
-  .pt-safe {
-    padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3.5rem);
-  }
-}
-
-html.is-ios .pt-safe,
-html.is-standalone .pt-safe {
-  padding-top: max(calc(env(safe-area-inset-top, 0px) + 0.5rem), 3.5rem);
-}
-
 /* Smooth Tab Switching Animation */
 @keyframes tabFadeSlide {
   0% {
