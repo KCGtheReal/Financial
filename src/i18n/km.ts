@@ -52,7 +52,7 @@ export const km: Record<TranslationKey, string> = {
   // Splits
   splitTransaction: 'បំបែកប្រតិបត្តិការ',
   splitDetails: 'បំបែកទៅតាមចំណាត់ថ្នាក់ច្រើន',
-  addSplit: 'បន្ថែមធាតុបំបែក',
+  addSplit: '+ បន្ថែមធាតុបំបែក',
   splitRemaining: 'នៅសល់ត្រូវបែងចែក',
   splitTotalMatch: 'ការបំបែកត្រូវគ្នានឹងចំនួនសរុប',
   splitTotalMismatch: 'ការបំបែកត្រូវតែស្មើនឹងចំនួនសរុប',
@@ -100,7 +100,7 @@ export const km: Record<TranslationKey, string> = {
   thisYear: 'ឆ្នាំនេះ',
   
   // Accounts
-  addAccount: 'បន្ថែមគណនី',
+  addAccount: '+ បន្ថែមគណនី',
   editAccount: 'កែប្រែគណនី',
   archiveAccount: 'ទុកក្នុងប័ណ្ណសារ',
   unarchiveAccount: 'ស្តារគណនីឡើងវិញ',
@@ -123,7 +123,7 @@ export const km: Record<TranslationKey, string> = {
   account_loan: 'ប្រាក់កម្ចី / បំណុល',
   
   // Categories View
-  addCategoryOrSub: 'បន្ថែមចំណាត់ថ្នាក់ ឬចំណាត់ថ្នាក់រង',
+  addCategoryOrSub: '+ បន្ថែមចំណាត់ថ្នាក់ ឬចំណាត់ថ្នាក់រង',
   subcategoriesCount: 'ចំណាត់ថ្នាក់រង',
   
   // Security & App Controls

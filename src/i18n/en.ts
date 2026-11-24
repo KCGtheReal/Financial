@@ -50,7 +50,7 @@ export const en = {
   // Splits
   splitTransaction: 'Split Transaction',
   splitDetails: 'Split across categories',
-  addSplit: 'Add Split Item',
+  addSplit: '+ Add Split Item',
   splitRemaining: 'Remaining to allocate',
   splitTotalMatch: 'Splits match transaction total',
   splitTotalMismatch: 'Splits must equal transaction total',
@@ -98,7 +98,7 @@ export const en = {
   thisYear: 'This Year',
   
   // Accounts
-  addAccount: 'Add Account',
+  addAccount: '+ Add Account',
   editAccount: 'Edit Account',
   archiveAccount: 'Archive Account',
   unarchiveAccount: 'Restore Account',
@@ -121,7 +121,7 @@ export const en = {
   account_loan: 'Loan / Debt',
   
   // Categories View
-  addCategoryOrSub: 'Add Category or Subcategory',
+  addCategoryOrSub: '+ Add Category or Subcategory',
   subcategoriesCount: 'subcategories',
   
   // Security & App Controls
