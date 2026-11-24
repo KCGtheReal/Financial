@@ -63,7 +63,7 @@ export const Header: React.FC = () => {
   const canRedo = historyManager.canRedo();
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-[#09090B] border-b border-zinc-200/80 dark:border-zinc-800/80 px-4 sm:px-6 pt-[max(env(safe-area-inset-top,0px),0.75rem)] pb-2.5 transition-colors duration-200">
+    <header className="sticky top-0 z-40 bg-white dark:bg-[#09090B] border-b border-zinc-200/80 dark:border-zinc-800/80 px-4 sm:px-6 pt-safe pb-2.5 transition-colors duration-200">
       <div className="max-w-md sm:max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Brand */}
         <div className="flex items-center gap-2.5 select-none">

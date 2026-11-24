@@ -120,11 +120,11 @@ export const AuthScreen: React.FC = () => {
   return (
     <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between font-sans select-text antialiased relative overflow-hidden bg-[#FAFAFA] dark:bg-black transition-colors duration-500 overscroll-none">
       {/* Ambient Lighting Effects placed lower to never disrupt top status bar continuity */}
-      <div className="absolute top-20 right-0 w-96 h-96 bg-zinc-300/[0.2] dark:bg-zinc-800/[0.15] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
-      <div className="absolute top-1/3 left-0 w-80 h-80 bg-zinc-200/[0.25] dark:bg-zinc-900/[0.2] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
+      <div className="absolute top-48 right-0 w-96 h-96 bg-zinc-300/[0.2] dark:bg-zinc-800/[0.15] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
+      <div className="absolute top-1/2 left-0 w-80 h-80 bg-zinc-200/[0.25] dark:bg-zinc-900/[0.2] rounded-full blur-3xl pointer-events-none transition-colors duration-500" />
 
       {/* Top Hero Container (Seamless Edge-to-Edge with Android / iOS Safe Area) */}
-      <div className="w-full flex-shrink-0 pt-[max(calc(env(safe-area-inset-top,0px)+0.75rem),3rem)] pb-4 sm:pb-6 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
+      <div className="w-full flex-shrink-0 pt-[max(calc(env(safe-area-inset-top,0px)+0.75rem),1.25rem)] pb-4 sm:pb-6 px-6 sm:px-12 md:px-16 lg:px-24 relative z-10 transition-colors duration-500">
         <div className="w-full max-w-xl mx-auto flex flex-col justify-between">
           {/* Top Header Bar */}
           <header className="flex items-center justify-between mb-4 sm:mb-8">

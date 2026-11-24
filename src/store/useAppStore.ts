@@ -68,7 +68,7 @@ const initialLang = (localStorage.getItem('apex_lang') as Language) || 'en';
 
 export function syncThemeColor(theme: 'dark' | 'light') {
   if (typeof document === 'undefined') return;
-  const color = theme === 'dark' ? '#000000' : '#FAFAFA';
+  const color = theme === 'dark' ? '#09090B' : '#FAFAFA';
 
   const metas = document.querySelectorAll('meta[name="theme-color"]');
   if (metas.length > 0) {
@@ -82,7 +82,7 @@ export function syncThemeColor(theme: 'dark' | 'light') {
 
   const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
   if (appleMeta) {
-    appleMeta.setAttribute('content', 'black-translucent');
+    appleMeta.setAttribute('content', 'default');
   }
 }
 
