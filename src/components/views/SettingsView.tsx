@@ -13,17 +13,11 @@ import {
   Edit3,
   UserPlus,
   LogOut,
-  Trash2,
   ShieldCheck,
-  ChevronRight,
-  Cloud,
-  Download,
-  Upload
+  ChevronRight
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { db } from '../../db/db';
 import { LedgerRepository } from '../../db/repository';
-import { isCloudSyncConfigured } from '../../db/supabase';
 import { t } from '../../i18n';
 import { Modal } from '../common/Modal';
 import { AppLogo } from '../common/AppLogo';
@@ -46,50 +40,8 @@ export const SettingsView: React.FC = () => {
   } = useAppStore();
 
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [pinSuccess, setPinSuccess] = useState(false);
-  const [resetMessage, setResetMessage] = useState('');
-  const [backupMessage, setBackupMessage] = useState('');
-
-  const handleExportBackup = async () => {
-    try {
-      const jsonString = await LedgerRepository.exportAllData();
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `apex-finance-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setBackupMessage(language === 'km' ? 'បានទាញយកទិន្នន័យបម្រុងទុកដោយជោគជ័យ!' : 'Backup file downloaded! Send it to your other phone to import.');
-      setTimeout(() => setBackupMessage(''), 5000);
-    } catch (err: any) {
-      alert('Export failed: ' + err.message);
-    }
-  };
-
-  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const res = await LedgerRepository.importAllData(text);
-      const current = await LedgerRepository.getUserProfile();
-      if (current) useAppStore.getState().setUserProfile(current);
-      setBackupMessage(
-        language === 'km' 
-          ? `បានបញ្ចូលទិន្នន័យជោគជ័យ! (${res.accountsCount} គណនី, ${res.txCount} ប្រតិបត្តិការ)` 
-          : `Restored successfully! Imported ${res.accountsCount} accounts and ${res.txCount} transactions.`
-      );
-      setTimeout(() => {
-        setBackupMessage('');
-        window.location.reload();
-      }, 1500);
-    } catch (err: any) {
-      alert('Import failed: ' + err.message);
-    }
-  };
 
   const handleUpdatePin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,16 +60,6 @@ export const SettingsView: React.FC = () => {
     if (confirm(t('signOutConfirm', language))) {
       const loggedOut = await LedgerRepository.logoutUser();
       useAppStore.getState().setUserProfile(loggedOut);
-    }
-  };
-
-  const handleClearLedgerData = async () => {
-    if (confirm('Are you sure you want to clear all your transactions and accounts? This cannot be undone.')) {
-      await db.transactions.clear();
-      await db.accounts.clear();
-      await db.savedFilters.clear();
-      setResetMessage('All transactions and accounts cleared successfully.');
-      setTimeout(() => setResetMessage(''), 3000);
     }
   };
 
@@ -219,12 +161,6 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {resetMessage && (
-        <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium text-center animate-fade-in">
-          {resetMessage}
-        </div>
-      )}
 
       {/* Security & Privacy Section */}
       <div className="space-y-2">
@@ -379,139 +315,15 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Data Management & Sync Section */}
-      <div className="space-y-2">
-        <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
-          {language === 'km' ? 'ទិន្នន័យ និង ការធ្វើសមកាលកម្ម' : 'Data & Cloud Sync'}
+      {/* Brand & App Info Card */}
+      <div className="pt-4 pb-2 flex flex-col items-center justify-center text-center select-none">
+        <AppLogo size={36} className="mb-2" />
+        <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-tight">
+          Apex Finance
         </span>
-
-        {backupMessage && (
-          <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs font-medium text-emerald-700 dark:text-emerald-300 animate-fade-in flex items-center gap-2">
-            <Check size={14} className="flex-shrink-0" />
-            <span>{backupMessage}</span>
-          </div>
-        )}
-
-        <div className="rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm divide-y divide-zinc-100 dark:divide-zinc-800/60">
-          {/* Cloud Sync Status */}
-          <div 
-            onClick={() => setIsSyncModalOpen(true)}
-            className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                isCloudSyncConfigured 
-                  ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400' 
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-              }`}>
-                <Cloud size={16} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
-                    {language === 'km' ? 'សមកាលកម្ម Cloud Sync' : 'Multi-Device Cloud Sync'}
-                  </span>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase ${
-                    isCloudSyncConfigured
-                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
-                  }`}>
-                    {isCloudSyncConfigured ? 'Active' : 'Setup Guide'}
-                  </span>
-                </div>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {isCloudSyncConfigured 
-                    ? (language === 'km' ? 'បានភ្ជាប់ Supabase • ចូលប្រើបានគ្រប់ទូរស័ព្ទ' : 'Connected to Supabase • Syncs across phones')
-                    : (language === 'km' ? 'ទិន្នន័យលើម៉ាស៊ីននេះ • ចុចដើម្បីមើលវិធីភ្ជាប់ទូរស័ព្ទច្រើន' : 'Tap to see how to enable login across phones')}
-                </span>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-zinc-400 flex-shrink-0" />
-          </div>
-
-          {/* Export Data Backup */}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
-                <Download size={16} />
-              </div>
-              <div>
-                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
-                  {language === 'km' ? 'ទាញយកទិន្នន័យបម្រុងទុក' : 'Export Data Backup'}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {language === 'km' ? 'រក្សាទុកទិន្នន័យជាឯកសារ JSON' : 'Save full account & ledger to portable JSON'}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={handleExportBackup}
-              className="text-xs px-3.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white font-semibold transition-colors border border-zinc-200 dark:border-zinc-700"
-            >
-              {language === 'km' ? 'ទាញយក' : 'Export'}
-            </button>
-          </div>
-
-          {/* Import Data Backup */}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
-                <Upload size={16} />
-              </div>
-              <div>
-                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
-                  {language === 'km' ? 'បញ្ចូលទិន្នន័យពីឯកសារ' : 'Import / Restore Backup'}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {language === 'km' ? 'ផ្ទេរទិន្នន័យពីទូរស័ព្ទមួយទៅមួយទៀតភ្លាមៗ' : 'Beam data from one phone to another instantly'}
-                </span>
-              </div>
-            </div>
-            <label className="text-xs px-3.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white font-semibold transition-colors border border-zinc-200 dark:border-zinc-700 cursor-pointer">
-              {language === 'km' ? 'ជ្រើសរើស' : 'Import'}
-              <input 
-                type="file" 
-                accept=".json" 
-                onChange={handleImportBackup} 
-                className="hidden" 
-              />
-            </label>
-          </div>
-
-          {/* Clear Personal Ledger Data */}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
-                <Trash2 size={16} />
-              </div>
-              <div>
-                <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
-                  {t('clearLedgerData', language)}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {t('clearLedgerDesc', language)}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={handleClearLedgerData}
-              className="text-xs px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-semibold transition-colors border border-rose-200 dark:border-rose-900/40"
-            >
-              {t('clearBtn', language)}
-            </button>
-          </div>
-        </div>
-
-        {/* Brand & App Info Card */}
-        <div className="pt-4 pb-2 flex flex-col items-center justify-center text-center select-none">
-          <AppLogo size={36} className="mb-2" />
-          <span className="text-xs font-bold text-zinc-900 dark:text-white tracking-tight">
-            Apex Finance
-          </span>
-          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-            Version 1.0.0 • Local-First Sovereign Wealth PWA
-          </span>
-        </div>
+        <span className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+          Version 1.0.0 • Local-First Sovereign Wealth PWA
+        </span>
       </div>
 
       {/* Change PIN Modal */}
@@ -562,83 +374,6 @@ export const SettingsView: React.FC = () => {
             </button>
           </div>
         </form>
-      </Modal>
-
-      {/* Multi-Device Cloud Sync Guide Modal */}
-      <Modal
-        isOpen={isSyncModalOpen}
-        onClose={() => setIsSyncModalOpen(false)}
-        title={language === 'km' ? 'សមកាលកម្មទូរស័ព្ទច្រើន (Multi-Device Sync)' : 'Multi-Device Cloud Sync'}
-        subtitle={
-          language === 'km'
-            ? 'ភ្ជាប់ Supabase ដោយឥតគិតថ្លៃដើម្បីចូលប្រើបានគ្រប់ទូរស័ព្ទ'
-            : 'Connect free Supabase cloud database to log into your account on all your phones'
-        }
-        maxWidth="lg"
-      >
-        <div className="space-y-4 text-xs select-none">
-          {/* Status Banner */}
-          <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${
-            isCloudSyncConfigured 
-              ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300' 
-              : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200'
-          }`}>
-            <div className="flex items-center gap-2.5">
-              <Cloud size={18} className={isCloudSyncConfigured ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-500'} />
-              <div>
-                <span className="font-bold block text-xs">
-                  {isCloudSyncConfigured ? 'Cloud Sync is Active' : 'Currently in Local Device Mode'}
-                </span>
-                <span className="text-[11px] opacity-80">
-                  {isCloudSyncConfigured 
-                    ? 'Your accounts and cards sync across all your phones in real time.'
-                    : 'Accounts are stored only on this specific phone.'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Instant Solution: File Transfer */}
-          <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 space-y-2">
-            <span className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
-              <Download size={14} />
-              Instant Transfer Right Now (No Setup Needed):
-            </span>
-            <p className="text-zinc-600 dark:text-zinc-400 text-[11px] leading-relaxed">
-              1. Tap <strong>"Export Data Backup"</strong> on Phone 1 to download your <code>.json</code> file.<br />
-              2. Send that file (via Telegram, WhatsApp, or AirDrop) to Phone 2.<br />
-              3. Open Phone 2 and tap <strong>"Import / Restore Backup"</strong>. Your entire account, PIN, and cards will load immediately!
-            </p>
-          </div>
-
-          {/* Permanent Solution: Connect Supabase */}
-          <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 space-y-2.5">
-            <span className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
-              <Cloud size={14} />
-              Permanent Multi-Phone Login (Free Supabase Cloud):
-            </span>
-            <ol className="list-decimal list-inside space-y-1.5 text-zinc-600 dark:text-zinc-400 text-[11px] leading-relaxed">
-              <li>Create a free account at <strong>supabase.com</strong>.</li>
-              <li>In Supabase, open the <strong>SQL Editor</strong>, paste the content of <code>supabase/schema.sql</code>, and click <strong>Run</strong>.</li>
-              <li>Go to your <strong>Vercel Project Settings → Environment Variables</strong> and add:
-                <div className="mt-1 p-2 rounded-xl bg-black text-zinc-200 font-mono text-[10px] space-y-1">
-                  <div>VITE_SUPABASE_URL = your-supabase-url</div>
-                  <div>VITE_SUPABASE_ANON_KEY = your-anon-key</div>
-                </div>
-              </li>
-              <li>Click <strong>Redeploy</strong> on Vercel. Done! Both phones will sync automatically.</li>
-            </ol>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              onClick={() => setIsSyncModalOpen(false)}
-              className="px-4 py-2 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-bold text-xs"
-            >
-              {language === 'km' ? 'យល់ព្រម' : 'Got It'}
-            </button>
-          </div>
-        </div>
       </Modal>
     </div>
   );
