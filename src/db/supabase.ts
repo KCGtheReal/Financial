@@ -27,8 +27,13 @@ export const isCloudSyncConfigured = Boolean(
   supabaseAnonKey.length > 20
 );
 
+const noStoreFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, cache: 'no-store' });
+
 export const supabase: SupabaseClient | null = isCloudSyncConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      global: { fetch: noStoreFetch },
+    })
   : null;
 
 interface SyncedIdsSnapshot {
@@ -683,7 +688,7 @@ export class CloudSyncService {
             const cloudTs = toTimestampMs(cloudRow.updated_at);
             const localTs = toTimestampMs(localAcc.updatedAt);
 
-            if (cloudTs > localTs + 1000) {
+            if (cloudTs > localTs) {
               accountsToSaveLocally.push({
                 id: cloudRow.id,
                 userId,
@@ -825,7 +830,7 @@ export class CloudSyncService {
             const cloudTs = toTimestampMs(cloudRow.updated_at);
             const localTs = toTimestampMs(localTx.updatedAt);
 
-            if (cloudTs > localTs + 1000) {
+            if (cloudTs > localTs) {
               txsToSaveLocally.push({
                 id: cloudRow.id,
                 userId,

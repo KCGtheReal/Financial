@@ -217,6 +217,9 @@ export const en = {
   activeSession: 'You (Active)',
   openAdminPanel: 'Open Admin Console',
   adminAccessNotice: 'Admin privileges enabled',
+  pullToRefresh: 'Pull to refresh',
+  releaseToRefresh: 'Release to refresh',
+  refreshingData: 'Syncing...',
 };
 
 export type TranslationKey = keyof typeof en;

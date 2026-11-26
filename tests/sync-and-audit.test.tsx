@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import 'fake-indexeddb/auto';
+import App from '../src/App';
+import { PullToRefresh } from '../src/components/common/PullToRefresh';
 import { db, DEFAULT_CATEGORIES, recalculateAllAccountBalances } from '../src/db/db';
 import { LedgerRepository } from '../src/db/repository';
 import { CloudSyncService } from '../src/db/supabase';
@@ -528,6 +530,107 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
     await waitFor(() => {
       expect(useAppStore.getState().userProfile?.isLoggedIn).toBe(false);
       expect(useAppStore.getState().selectedAccountId).toBeNull();
+    });
+  });
+
+  it('triggers PullToRefresh only on vertical downward pull at page top and ignores horizontal swipes or disabled state', async () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <PullToRefresh onRefresh={onRefresh}>
+        <div>Ledger Content</div>
+      </PullToRefresh>
+    );
+
+    const container = screen.getByTestId('pull-to-refresh');
+    const indicator = screen.getByTestId('pull-to-refresh-indicator');
+
+    // Horizontal swipe must NOT activate pull-to-refresh
+    fireEvent.touchStart(container, { touches: [{ clientX: 20, clientY: 20 }] });
+    fireEvent.touchMove(container, { touches: [{ clientX: 110, clientY: 32 }] });
+    fireEvent.touchEnd(container);
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    // Vertical downward pull past threshold triggers ready -> refreshing -> idle
+    fireEvent.touchStart(container, { touches: [{ clientX: 50, clientY: 20 }] });
+    fireEvent.touchMove(container, { touches: [{ clientX: 52, clientY: 165 }] });
+
+    expect(container.getAttribute('data-pull-state')).toBe('ready');
+    expect(parseFloat(indicator.style.height)).toBeGreaterThanOrEqual(56);
+
+    await act(async () => {
+      fireEvent.touchEnd(container);
+    });
+
+    await waitFor(() => {
+      expect(onRefresh).toHaveBeenCalledTimes(1);
+      expect(container.getAttribute('data-pull-state')).toBe('idle');
+      expect(indicator.style.height).toBe('0px');
+    });
+
+    // Disabled state (e.g. modal open) ignores pull gesture
+    rerender(
+      <PullToRefresh onRefresh={onRefresh} isDisabled>
+        <div>Ledger Content</div>
+      </PullToRefresh>
+    );
+    fireEvent.touchStart(container, { touches: [{ clientX: 50, clientY: 20 }] });
+    fireEvent.touchMove(container, { touches: [{ clientX: 50, clientY: 165 }] });
+    fireEvent.touchEnd(container);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('automatically syncs new cloud cards via periodic heartbeat and pull-to-refresh while logged in', async () => {
+    const loggedInUser: UserProfile = {
+      id: 'usr-live-sync',
+      name: 'Live Sync User',
+      email: 'live@apex.finance',
+      pinCode: '2123',
+      currency: 'USD',
+      role: 'user',
+      isLoggedIn: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    await LedgerRepository.saveUserProfile(loggedInUser);
+
+    vi.spyOn(CloudSyncService, 'isConfigured').mockReturnValue(true);
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+    let remoteSyncCount = 0;
+    const syncSpy = vi.spyOn(LedgerRepository, 'syncWithCloud').mockImplementation(async () => {
+      remoteSyncCount += 1;
+      if (remoteSyncCount >= 2) {
+        await db.accounts.put({
+          id: 'acc-remote-phone1',
+          userId: 'usr-live-sync',
+          name: 'Phone 1 New Card',
+          type: 'bank',
+          currency: 'USD',
+          initialBalance: 500,
+          currentBalance: 500,
+          color: '#000000',
+          icon: 'Landmark',
+          isArchived: false,
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        });
+      }
+      return { success: true };
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(syncSpy).toHaveBeenCalled();
+    });
+
+    // Simulate returning from background (pageshow) -> pulls Phone 1's new card without re-login
+    await act(async () => {
+      window.dispatchEvent(new Event('pageshow'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phone 1 New Card').length).toBeGreaterThan(0);
     });
   });
 });

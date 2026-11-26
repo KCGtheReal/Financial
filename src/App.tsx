@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { seedDatabaseIfEmpty } from './db/db';
+import { seedDatabaseIfEmpty, recalculateAllAccountBalances } from './db/db';
 import { LedgerRepository } from './db/repository';
 import { CloudSyncService, supabase } from './db/supabase';
 import { historyManager } from './utils/history';
@@ -16,6 +16,7 @@ import { AuthScreen } from './components/auth/AuthScreen';
 import { AdminPanelModal } from './components/admin/AdminPanelModal';
 import { CommandPalette } from './components/common/CommandPalette';
 import { PinLockScreen } from './components/common/PinLockScreen';
+import { PullToRefresh } from './components/common/PullToRefresh';
 import { MobileNav } from './components/layout/MobileNav';
 import { AccountsView } from './components/views/AccountsView';
 import { CategoriesView } from './components/views/CategoriesView';
@@ -24,14 +25,29 @@ import { useAppStore } from './store/useAppStore';
 import { useLedgerStore } from './store/useLedgerStore';
 
 export const App: React.FC = () => {
-  const { isPrivacyMode, activeTab, language, userProfile } = useAppStore();
+  const {
+    isPrivacyMode,
+    activeTab,
+    language,
+    userProfile,
+    isAppLocked,
+    isQuickAddOpen,
+    editingTransaction,
+    isAccountModalOpen,
+    isCategoryModalOpen,
+    isAuthModalOpen,
+    isAdminPanelOpen,
+    isCommandPaletteOpen,
+  } = useAppStore();
   const [isInitializing, setIsInitializing] = useState(true);
   const lastSyncAttemptRef = useRef<number>(0);
+  const prevLockedRef = useRef<boolean>(isAppLocked);
+  const [realtimeEpoch, setRealtimeEpoch] = useState(0);
 
   const runBackgroundSync = useCallback(async (force = false) => {
     if (!CloudSyncService.isConfigured()) return;
     const now = Date.now();
-    if (!force && now - lastSyncAttemptRef.current < 4000) return;
+    if (!force && now - lastSyncAttemptRef.current < 1000) return;
     lastSyncAttemptRef.current = now;
 
     const store = useAppStore.getState();
@@ -57,6 +73,17 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  const handlePullToRefresh = useCallback(async () => {
+    await runBackgroundSync(true);
+    if (!CloudSyncService.isConfigured()) {
+      await recalculateAllAccountBalances();
+    }
+    useLedgerStore.getState().incrementHistoryRevision();
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistration === 'function') {
+      navigator.serviceWorker.getRegistration().then((reg) => reg?.update().catch(() => {})).catch(() => {});
+    }
+  }, [runBackgroundSync]);
+
   useEffect(() => {
     seedDatabaseIfEmpty()
       .then(() => LedgerRepository.getUserProfile())
@@ -81,7 +108,7 @@ export const App: React.FC = () => {
       });
   }, [runBackgroundSync]);
 
-  // Trigger bidirectional Cloud Sync whenever authenticated user opens app, comes online, returns from background, or focuses window
+  // Trigger bidirectional Cloud Sync whenever authenticated user opens app, comes online, resumes on iOS, unlocks, or stays active
   const activeUserId = userProfile?.isLoggedIn ? userProfile.id : null;
   useEffect(() => {
     if (!activeUserId || !CloudSyncService.isConfigured()) return;
@@ -90,49 +117,116 @@ export const App: React.FC = () => {
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        runBackgroundSync(false);
+        runBackgroundSync(true);
+        setRealtimeEpoch((n) => n + 1);
       }
     };
-    const handleOnline = () => runBackgroundSync(true);
+    const handlePageShow = () => runBackgroundSync(true);
+    const handleOnline = () => {
+      runBackgroundSync(true);
+      setRealtimeEpoch((n) => n + 1);
+    };
     const handleFocus = () => runBackgroundSync(false);
 
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('online', handleOnline);
     window.addEventListener('focus', handleFocus);
 
-    // Optional live Supabase Realtime listener if enabled on project tables
-    const channel = supabase
-      ? supabase
-          .channel(`apex-user-sync-${activeUserId}`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'accounts', filter: `user_id=eq.${activeUserId}` },
-            () => runBackgroundSync(true)
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${activeUserId}` },
-            () => runBackgroundSync(true)
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'categories', filter: `user_id=eq.${activeUserId}` },
-            () => runBackgroundSync(true)
-          )
-          .subscribe()
-      : null;
+    // Live periodic background sync while visible & online so multi-device changes appear without manual re-login
+    const syncIntervalId = window.setInterval(() => {
+      if (
+        document.visibilityState === 'visible' &&
+        (typeof navigator === 'undefined' || navigator.onLine !== false) &&
+        !useAppStore.getState().isAppLocked
+      ) {
+        runBackgroundSync(true);
+      }
+    }, 4000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('focus', handleFocus);
-      if (channel && supabase) {
-        supabase.removeChannel(channel);
-      }
+      window.clearInterval(syncIntervalId);
     };
   }, [activeUserId, runBackgroundSync]);
 
-  // Sync lightly when switching views so remote changes appear quickly
+  // Dedicated Supabase Realtime subscription with clean reconnect on foreground/online
+  useEffect(() => {
+    if (!activeUserId || !CloudSyncService.isConfigured() || !supabase) return;
+
+    const channel = supabase
+      .channel(`apex-user-sync-${activeUserId}-${realtimeEpoch}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'accounts', filter: `user_id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'accounts', filter: `user_id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'accounts' },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'transactions', filter: `user_id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'transactions', filter: `user_id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'transactions' },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'categories', filter: `user_id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'categories', filter: `user_id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'categories' },
+        () => runBackgroundSync(true)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${activeUserId}` },
+        () => runBackgroundSync(true)
+      )
+      .subscribe();
+
+    return () => {
+      if (supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [activeUserId, realtimeEpoch, runBackgroundSync]);
+
+  // Immediately sync when user unlocks PIN lock screen
+  useEffect(() => {
+    if (prevLockedRef.current && !isAppLocked && activeUserId) {
+      runBackgroundSync(true);
+    }
+    prevLockedRef.current = isAppLocked;
+  }, [isAppLocked, activeUserId, runBackgroundSync]);
+
+  // Sync when switching views so remote changes appear quickly
   useEffect(() => {
     if (activeUserId) {
       runBackgroundSync(false);
@@ -222,6 +316,16 @@ export const App: React.FC = () => {
     );
   }
 
+  const isAnyModalOpen =
+    isAppLocked ||
+    isQuickAddOpen ||
+    Boolean(editingTransaction) ||
+    isAccountModalOpen ||
+    isCategoryModalOpen ||
+    isAuthModalOpen ||
+    isAdminPanelOpen ||
+    isCommandPaletteOpen;
+
   return (
     <div
       lang={language}
@@ -235,34 +339,37 @@ export const App: React.FC = () => {
       {/* Global Header */}
       <Header />
 
-      {/* Tab Routed Views with Fluid Slide & Fade Animation */}
-      {activeTab === 'ledger' && (
-        <div key="tab-ledger" className="animate-tab-switch flex flex-col flex-1">
-          <AccountsBar />
-          <FilterBar />
-          <main className="flex-1">
-            <TransactionTable />
+      {/* Pull-to-Refresh Wrapper below sticky header */}
+      <PullToRefresh onRefresh={handlePullToRefresh} isDisabled={isAnyModalOpen}>
+        {/* Tab Routed Views with Fluid Slide & Fade Animation */}
+        {activeTab === 'ledger' && (
+          <div key="tab-ledger" className="animate-tab-switch flex flex-col flex-1">
+            <AccountsBar />
+            <FilterBar />
+            <main className="flex-1">
+              <TransactionTable />
+            </main>
+          </div>
+        )}
+
+        {activeTab === 'accounts' && (
+          <main key="tab-accounts" className="flex-1 animate-tab-switch">
+            <AccountsView />
           </main>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'accounts' && (
-        <main key="tab-accounts" className="flex-1 animate-tab-switch">
-          <AccountsView />
-        </main>
-      )}
+        {activeTab === 'categories' && (
+          <main key="tab-categories" className="flex-1 animate-tab-switch">
+            <CategoriesView />
+          </main>
+        )}
 
-      {activeTab === 'categories' && (
-        <main key="tab-categories" className="flex-1 animate-tab-switch">
-          <CategoriesView />
-        </main>
-      )}
-
-      {activeTab === 'settings' && (
-        <main key="tab-settings" className="flex-1 animate-tab-switch">
-          <SettingsView />
-        </main>
-      )}
+        {activeTab === 'settings' && (
+          <main key="tab-settings" className="flex-1 animate-tab-switch">
+            <SettingsView />
+          </main>
+        )}
+      </PullToRefresh>
 
       {/* Floating Multi-select Bulk Actions Toolbar */}
       <TransactionBulkToolbar />

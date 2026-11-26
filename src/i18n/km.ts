@@ -219,4 +219,7 @@ export const km: Record<TranslationKey, string> = {
   activeSession: 'អ្នក (កំពុងប្រើ)',
   openAdminPanel: 'បើកផ្ទាំង Admin',
   adminAccessNotice: 'សិទ្ធិអ្នកគ្រប់គ្រងត្រូវបានបើកដំណើរការ',
+  pullToRefresh: 'ទាញចុះដើម្បីផ្ទុកឡើងវិញ',
+  releaseToRefresh: 'លែងដើម្បីធ្វើបច្ចុប្បន្នភាព',
+  refreshingData: 'កំពុងធ្វើសមកាលកម្ម...',
 };
