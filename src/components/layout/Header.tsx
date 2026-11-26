@@ -11,11 +11,14 @@ import {
   Redo2,
   Command,
   User,
-  ShieldCheck
+  ShieldCheck,
+  RefreshCw
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
 import { historyManager } from '../../utils/history';
+import { LedgerRepository } from '../../db/repository';
+import { CloudSyncService } from '../../db/supabase';
 import { t } from '../../i18n';
 import { AppLogo } from '../common/AppLogo';
 
@@ -30,9 +33,13 @@ export const Header: React.FC = () => {
     setLanguage,
     setCommandPaletteOpen,
     userProfile,
+    setUserProfile,
+    setPinCode,
     setAuthModalOpen,
     setAuthMode,
     setAdminPanelOpen,
+    isCloudSyncing,
+    setCloudSyncStatus,
   } = useAppStore();
 
   const { incrementHistoryRevision } = useLedgerStore();
@@ -157,22 +164,63 @@ export const Header: React.FC = () => {
                   </span>
                 </button>
 
-                {/* Admin Console Entry */}
-                <button
-                  onClick={() => {
-                    setAdminPanelOpen(true);
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-950 dark:hover:text-white transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <ShieldCheck size={15} className="text-zinc-400 flex-shrink-0" />
-                    <span className="truncate font-semibold">{t('adminConsole', language)}</span>
-                  </div>
-                  <span className="text-[10px] text-zinc-400 font-mono flex-shrink-0">
-                    {userProfile?.role === 'admin' ? 'Admin' : 'System'}
-                  </span>
-                </button>
+                {/* Admin Console Entry (Admins Only) */}
+                {userProfile?.role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setAdminPanelOpen(true);
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-950 dark:hover:text-white transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ShieldCheck size={15} className="text-zinc-400 flex-shrink-0" />
+                      <span className="truncate font-semibold">{t('adminConsole', language)}</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-mono flex-shrink-0">
+                      Admin
+                    </span>
+                  </button>
+                )}
+
+                {/* Cloud Sync Trigger (when signed in and cloud configured) */}
+                {userProfile?.isLoggedIn && CloudSyncService.isConfigured() && (
+                  <button
+                    disabled={isCloudSyncing}
+                    onClick={async () => {
+                      setCloudSyncStatus(true);
+                      try {
+                        const res = await LedgerRepository.syncWithCloud({
+                          onProfileUpdated: (freshProfile) => {
+                            setUserProfile(freshProfile);
+                            if (freshProfile.pinCode) {
+                              setPinCode(freshProfile.pinCode);
+                            }
+                          },
+                        });
+                        if (res.success) {
+                          setCloudSyncStatus(false, new Date().toISOString());
+                        } else {
+                          setCloudSyncStatus(false);
+                        }
+                      } catch {
+                        setCloudSyncStatus(false);
+                      } finally {
+                        setIsMenuOpen(false);
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-950 dark:hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <RefreshCw size={15} className={`text-zinc-400 flex-shrink-0 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+                      <span className="truncate font-semibold">
+                        {isCloudSyncing
+                          ? (language === 'km' ? 'កំពុងធ្វើសមកាលកម្ម...' : 'Syncing...')
+                          : (language === 'km' ? 'ធ្វើសមកាលកម្មពពក' : 'Sync Cloud')}
+                      </span>
+                    </div>
+                  </button>
+                )}
 
                 <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
 

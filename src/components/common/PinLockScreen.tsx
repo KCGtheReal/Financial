@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Delete } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { t } from '../../i18n';
@@ -9,7 +9,7 @@ export const PinLockScreen: React.FC = () => {
   const [enteredPin, setEnteredPin] = useState('');
   const [hasError, setHasError] = useState(false);
 
-  const handleDigit = (digit: string) => {
+  const handleDigit = useCallback((digit: string) => {
     if (enteredPin.length < 4) {
       const nextPin = enteredPin + digit;
       setEnteredPin(nextPin);
@@ -28,12 +28,31 @@ export const PinLockScreen: React.FC = () => {
         }
       }
     }
-  };
+  }, [enteredPin, pinCode, setIsAppLocked]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     setEnteredPin((prev) => prev.slice(0, -1));
     setHasError(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isAppLocked) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleDelete();
+      } else if (e.key === 'Escape') {
+        setEnteredPin('');
+        setHasError(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isAppLocked, handleDigit, handleDelete]);
 
   if (!isAppLocked) return null;
 

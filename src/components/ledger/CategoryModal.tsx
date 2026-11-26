@@ -7,10 +7,11 @@ import { Modal } from '../common/Modal';
 import { Icon } from '../common/Icon';
 import { Category } from '@contracts/api';
 import { Plus, Trash2, FolderPlus } from 'lucide-react';
+import { generateId } from '../../utils/id';
 import { t } from '../../i18n';
 
 const AVAILABLE_ICONS = [
-  'Home', 'Utensils', 'Coffee', 'Car', 'Fuel', 'Bus', 'Zap', 'Wifi',
+  'CircleDollarSign', 'Home', 'Utensils', 'Coffee', 'Car', 'Fuel', 'Bus', 'Zap', 'Wifi',
   'Activity', 'Film', 'ShoppingBag', 'Briefcase', 'TrendingUp',
   'Laptop', 'ShieldCheck', 'CreditCard', 'PiggyBank', 'Gift'
 ];
@@ -29,27 +30,36 @@ export const CategoryModal: React.FC = () => {
   const [parentId, setParentId] = useState<string>('');
   const [icon, setIcon] = useState('CircleDollarSign');
   const [color, setColor] = useState('#18181B');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const parentCategories = categories.filter((c) => !c.parentId);
+  const matchingParentCategories = parentCategories.filter((c) => c.type === type);
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (isSubmitting || !name.trim()) return;
 
-    const newCategory: Category = {
-      id: 'cat-' + Date.now(),
-      name: name.trim(),
-      type,
-      parentId: parentId || undefined,
-      icon,
-      color,
-      order: categories.length + 1,
-      isSystem: false,
-    };
+    setIsSubmitting(true);
+    try {
+      const selectedParent = parentId ? categories.find((c) => c.id === parentId) : undefined;
+      const newCategory: Category = {
+        id: generateId('cat'),
+        name: name.trim(),
+        type: selectedParent ? selectedParent.type : type,
+        parentId: parentId || undefined,
+        icon,
+        color,
+        order: categories.length + 1,
+        isSystem: false,
+        createdAt: new Date().toISOString(),
+      };
 
-    await LedgerRepository.createCategory(newCategory);
-    setName('');
-    setParentId('');
+      await LedgerRepository.createCategory(newCategory);
+      setName('');
+      setParentId('');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteCategory = async (cat: Category) => {
@@ -95,7 +105,10 @@ export const CategoryModal: React.FC = () => {
               <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">Type</label>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as 'expense' | 'income')}
+                onChange={(e) => {
+                  setType(e.target.value as 'expense' | 'income');
+                  setParentId('');
+                }}
                 className="w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-white outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
               >
                 <option value="expense">Expense</option>
@@ -111,7 +124,7 @@ export const CategoryModal: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-900 dark:text-white outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
               >
                 <option value="">(None - Top-level Category)</option>
-                {parentCategories.map((c) => (
+                {matchingParentCategories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.type})
                   </option>
@@ -189,7 +202,7 @@ export const CategoryModal: React.FC = () => {
                         <Icon name={parent.icon} size={14} />
                       </div>
                       <span className="text-xs font-semibold text-zinc-900 dark:text-white">{parent.name}</span>
-                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
                         {parent.type}
                       </span>
                     </div>

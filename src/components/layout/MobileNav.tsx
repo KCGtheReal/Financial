@@ -60,7 +60,7 @@ export const MobileNav: React.FC = () => {
         <div className="relative -top-3.5 flex flex-col items-center">
           <button
             onClick={() => setQuickAddOpen(true)}
-            className="w-13 h-13 rounded-full bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center shadow-lg shadow-black/20 dark:shadow-white/10 active:scale-90 transition-transform p-3.5 border-4 border-white dark:border-black"
+            className="w-14 h-14 rounded-full bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center shadow-lg shadow-black/20 dark:shadow-white/10 active:scale-90 transition-transform p-3.5 border-4 border-white dark:border-black"
             aria-label="New Transaction"
           >
             <Plus size={24} strokeWidth={2.8} />

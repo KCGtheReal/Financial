@@ -93,7 +93,7 @@ export const AccountsView: React.FC = () => {
           setEditingAccount(null);
           setAccountModalOpen(true);
         }}
-        className="w-full py-3 px-4 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-2 text-xs font-semibold transition-all active:scale-98 shadow-sm cursor-pointer"
+        className="w-full py-3 px-4 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-2 text-xs font-semibold transition-all active:scale-[0.98] shadow-sm cursor-pointer"
       >
         <Plus size={16} />
         <span>{t('addAccount', language)}</span>
@@ -134,7 +134,7 @@ export const AccountsView: React.FC = () => {
                     setSelectedAccountId(account.id);
                     setActiveTab('ledger');
                   }}
-                  className="p-3.5 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 active:scale-98 transition-all flex items-center justify-between cursor-pointer group shadow-sm"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 active:scale-[0.98] transition-all flex items-center justify-between cursor-pointer group shadow-sm"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center justify-center flex-shrink-0">

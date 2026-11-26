@@ -44,16 +44,32 @@ export const TransactionTable: React.FC = () => {
     return LedgerRepository.filterTransactions(list, filter);
   }, [allTransactions, selectedAccountId, filter]);
 
-  // Aggregate income and expense (transfers excluded from spending)
-  const { totalExpense, totalIncome } = useMemo(() => {
-    let exp = 0;
-    let inc = 0;
+  // Aggregate income and expense per currency (transfers strictly excluded from spending)
+  const { incomeEntries, expenseEntries } = useMemo(() => {
+    const accCurrencyMap = new Map(accounts.map((a) => [a.id, a.currency]));
+    const selectedAccCurrency = selectedAccountId ? accCurrencyMap.get(selectedAccountId) : undefined;
+    const fallbackCurr = selectedAccCurrency || 'USD';
+
+    const incMap: Record<string, number> = {};
+    const expMap: Record<string, number> = {};
+
     for (const tx of filteredTransactions) {
-      if (tx.type === 'expense') exp += tx.amount;
-      if (tx.type === 'income') inc += tx.amount;
+      const curr = accCurrencyMap.get(tx.accountId) || fallbackCurr;
+      if (tx.type === 'income') {
+        incMap[curr] = (incMap[curr] || 0) + tx.amount;
+      } else if (tx.type === 'expense') {
+        expMap[curr] = (expMap[curr] || 0) + tx.amount;
+      }
     }
-    return { totalExpense: exp, totalIncome: inc };
-  }, [filteredTransactions]);
+
+    const incEntries = Object.entries(incMap);
+    const expEntries = Object.entries(expMap);
+
+    return {
+      incomeEntries: incEntries.length > 0 ? incEntries : ([[fallbackCurr, 0]] as [string, number][]),
+      expenseEntries: expEntries.length > 0 ? expEntries : ([[fallbackCurr, 0]] as [string, number][]),
+    };
+  }, [filteredTransactions, accounts, selectedAccountId]);
 
   const allSelected =
     filteredTransactions.length > 0 &&
@@ -80,19 +96,19 @@ export const TransactionTable: React.FC = () => {
           </h2>
         </div>
 
-        {/* Minimalist In/Out Totals Ticker */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 rounded-full">
-          <div className="flex items-center gap-1">
+        {/* Minimalist In/Out Totals Ticker (currency-accurate) */}
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 rounded-full max-w-[60vw] overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <TrendingUp size={12} className="text-emerald-600 dark:text-emerald-400" />
-            <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-xs">
-              {formatMoney(totalIncome, 'USD', { privacy: isPrivacyMode })}
+            <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-xs whitespace-nowrap">
+              {incomeEntries.map(([curr, amt]) => formatMoney(amt, curr, { privacy: isPrivacyMode })).join(' · ')}
             </span>
           </div>
-          <div className="w-px h-2.5 bg-zinc-300 dark:bg-zinc-700" />
-          <div className="flex items-center gap-1">
+          <div className="w-px h-2.5 bg-zinc-300 dark:bg-zinc-700 flex-shrink-0" />
+          <div className="flex items-center gap-1 flex-shrink-0">
             <TrendingDown size={12} className="text-zinc-500 dark:text-zinc-400" />
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200 text-xs">
-              {formatMoney(totalExpense, 'USD', { privacy: isPrivacyMode })}
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200 text-xs whitespace-nowrap">
+              {expenseEntries.map(([curr, amt]) => formatMoney(amt, curr, { privacy: isPrivacyMode })).join(' · ')}
             </span>
           </div>
         </div>

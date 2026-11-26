@@ -27,7 +27,7 @@ export const AccountsBar: React.FC = () => {
   }, {} as Record<string, number>);
 
   return (
-    <div className="w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-850 px-4 sm:px-6 py-3 transition-colors duration-200">
+    <div className="w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800/80 px-4 sm:px-6 py-3 transition-colors duration-200">
       <div className="max-w-md sm:max-w-7xl mx-auto space-y-3">
         {/* Net Balance Minimalist Hero */}
         <div className="flex items-baseline justify-between">

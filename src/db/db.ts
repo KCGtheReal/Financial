@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Account, Transaction, Category, SavedFilter, AppSettings, UserProfile } from '@contracts/api';
+import { Account, Transaction, Category, SavedFilter, AppSettings, UserProfile, SyncQueueItem } from '@contracts/api';
 
 export class ApexDatabase extends Dexie {
   accounts!: Table<Account, string>;
@@ -8,6 +8,7 @@ export class ApexDatabase extends Dexie {
   savedFilters!: Table<SavedFilter, string>;
   settings!: Table<{ key: string; value: any }, string>;
   users!: Table<UserProfile, string>;
+  syncQueue!: Table<SyncQueueItem, string>;
 
   constructor() {
     super('ApexFinanceDB');
@@ -25,6 +26,15 @@ export class ApexDatabase extends Dexie {
       savedFilters: 'id, name, createdAt',
       settings: 'key',
       users: 'id, email, name, role, createdAt',
+    });
+    this.version(3).stores({
+      accounts: 'id, userId, name, type, currency, isArchived, createdAt',
+      transactions: 'id, userId, type, amount, date, accountId, toAccountId, categoryId, subcategoryId, merchant, status, createdAt, *tags',
+      categories: 'id, userId, name, type, parentId, order',
+      savedFilters: 'id, userId, name, createdAt',
+      settings: 'key',
+      users: 'id, email, name, role, createdAt',
+      syncQueue: 'id, table, entityId, operation, userId, timestamp',
     });
   }
 }
@@ -144,9 +154,11 @@ export async function recalculateAllAccountBalances() {
       }
     }
 
-    await db.accounts.update(account.id, {
-      currentBalance: balance,
-      updatedAt: new Date().toISOString()
-    });
+    if (account.currentBalance !== balance) {
+      await db.accounts.update(account.id, {
+        currentBalance: balance,
+        updatedAt: new Date().toISOString()
+      });
+    }
   }
 }

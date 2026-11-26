@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { seedDatabaseIfEmpty } from './db/db';
 import { LedgerRepository } from './db/repository';
+import { CloudSyncService, supabase } from './db/supabase';
+import { historyManager } from './utils/history';
 import { Header } from './components/layout/Header';
 import { AccountsBar } from './components/layout/AccountsBar';
 import { FilterBar } from './components/ledger/FilterBar';
@@ -19,10 +21,41 @@ import { AccountsView } from './components/views/AccountsView';
 import { CategoriesView } from './components/views/CategoriesView';
 import { SettingsView } from './components/views/SettingsView';
 import { useAppStore } from './store/useAppStore';
+import { useLedgerStore } from './store/useLedgerStore';
 
 export const App: React.FC = () => {
   const { isPrivacyMode, activeTab, language, userProfile } = useAppStore();
   const [isInitializing, setIsInitializing] = useState(true);
+  const lastSyncAttemptRef = useRef<number>(0);
+
+  const runBackgroundSync = useCallback(async (force = false) => {
+    if (!CloudSyncService.isConfigured()) return;
+    const now = Date.now();
+    if (!force && now - lastSyncAttemptRef.current < 4000) return;
+    lastSyncAttemptRef.current = now;
+
+    const store = useAppStore.getState();
+    if (!store.userProfile?.isLoggedIn) return;
+
+    store.setCloudSyncStatus(true);
+    try {
+      const res = await LedgerRepository.syncWithCloud({
+        onProfileUpdated: (updated) => {
+          useAppStore.getState().setUserProfile(updated);
+          if (updated.pinCode) {
+            useAppStore.getState().setPinCode(updated.pinCode);
+          }
+        },
+      });
+      if (res.success) {
+        useAppStore.getState().setCloudSyncStatus(false, new Date().toISOString());
+      } else {
+        useAppStore.getState().setCloudSyncStatus(false);
+      }
+    } catch {
+      useAppStore.getState().setCloudSyncStatus(false);
+    }
+  }, []);
 
   useEffect(() => {
     seedDatabaseIfEmpty()
@@ -32,6 +65,9 @@ export const App: React.FC = () => {
           useAppStore.getState().setUserProfile(profile);
           if (profile.pinCode) {
             useAppStore.getState().setPinCode(profile.pinCode);
+          }
+          if (profile.isLoggedIn) {
+            runBackgroundSync(true);
           }
         } else {
           useAppStore.getState().setUserProfile(null);
@@ -43,7 +79,114 @@ export const App: React.FC = () => {
       .finally(() => {
         setIsInitializing(false);
       });
-  }, []);
+  }, [runBackgroundSync]);
+
+  // Trigger bidirectional Cloud Sync whenever authenticated user opens app, comes online, returns from background, or focuses window
+  const activeUserId = userProfile?.isLoggedIn ? userProfile.id : null;
+  useEffect(() => {
+    if (!activeUserId || !CloudSyncService.isConfigured()) return;
+
+    runBackgroundSync(true);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        runBackgroundSync(false);
+      }
+    };
+    const handleOnline = () => runBackgroundSync(true);
+    const handleFocus = () => runBackgroundSync(false);
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', handleFocus);
+
+    // Optional live Supabase Realtime listener if enabled on project tables
+    const channel = supabase
+      ? supabase
+          .channel(`apex-user-sync-${activeUserId}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'accounts', filter: `user_id=eq.${activeUserId}` },
+            () => runBackgroundSync(true)
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${activeUserId}` },
+            () => runBackgroundSync(true)
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'categories', filter: `user_id=eq.${activeUserId}` },
+            () => runBackgroundSync(true)
+          )
+          .subscribe()
+      : null;
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', handleFocus);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [activeUserId, runBackgroundSync]);
+
+  // Sync lightly when switching views so remote changes appear quickly
+  useEffect(() => {
+    if (activeUserId) {
+      runBackgroundSync(false);
+    }
+  }, [activeTab, activeUserId, runBackgroundSync]);
+
+  // Global desktop keyboard shortcuts: N (New tx), Ctrl/Cmd+Z (Undo), Ctrl/Cmd+Y / Ctrl+Shift+Z (Redo)
+  useEffect(() => {
+    if (!activeUserId) return;
+
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
+      const store = useAppStore.getState();
+      if (store.isAppLocked) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isEditingInput =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable;
+
+      if (isEditingInput) return;
+
+      const isAnyModalOpen =
+        store.isQuickAddOpen ||
+        Boolean(store.editingTransaction) ||
+        store.isAccountModalOpen ||
+        store.isCategoryModalOpen ||
+        store.isAuthModalOpen ||
+        store.isAdminPanelOpen ||
+        store.isCommandPaletteOpen;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          await historyManager.redo();
+        } else {
+          await historyManager.undo();
+        }
+        useLedgerStore.getState().incrementHistoryRevision();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        await historyManager.redo();
+        useLedgerStore.getState().incrementHistoryRevision();
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'n' && !isAnyModalOpen) {
+        e.preventDefault();
+        store.setQuickAddOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [activeUserId]);
 
   // Instantly reset scroll to top whenever switching tabs
   useEffect(() => {

@@ -12,8 +12,9 @@ import {
   TransactionStatus, 
   TransactionSplit 
 } from '@contracts/api';
-import { toMinorUnits, toMajorUnits, validateSplitSum, getCurrency } from '../../utils/money';
+import { toMinorUnits, toMajorUnits, validateSplitSum, getCurrency, formatMoney } from '../../utils/money';
 import { getTodayString } from '../../utils/date';
+import { generateId } from '../../utils/id';
 import { 
   Upload, 
   X, 
@@ -66,11 +67,17 @@ export const TransactionModal: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [isKeypadOpen, setIsKeypadOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const prevIsOpen = useRef(false);
+  const prevInitKeyRef = useRef<string | null>(null);
+
+  // Active accounts available for new entries (keep archived account if editing existing tx linked to it)
+  const selectableAccounts = accounts.filter(
+    (a) => !a.isArchived || a.id === editingTransaction?.accountId || a.id === editingTransaction?.toAccountId
+  );
 
   // Find active account to know currency
-  const activeAccount = accounts.find((a) => a.id === accountId) || accounts[0];
+  const activeAccount = accounts.find((a) => a.id === accountId) || selectableAccounts[0] || accounts[0];
   const currency = activeAccount?.currency || 'USD';
 
   // Handle keypad input
@@ -151,11 +158,24 @@ export const TransactionModal: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isKeypadOpen, handleKeypadPress]);
 
-  // Sync state when modal opens or editing changes
+  // Sync state ONLY when opening modal or switching target transaction (never on currency/account dropdown changes)
   useEffect(() => {
+    if (!isOpen) {
+      setIsKeypadOpen(false);
+      prevInitKeyRef.current = null;
+      return;
+    }
+
+    const initKey = editingTransaction ? `edit:${editingTransaction.id}` : 'new';
+    if (prevInitKeyRef.current === initKey) {
+      return;
+    }
+    prevInitKeyRef.current = initKey;
+
     if (editingTransaction) {
+      const txCurrency = accounts.find((a) => a.id === editingTransaction.accountId)?.currency || 'USD';
       setType(editingTransaction.type);
-      setAmountStr(toMajorUnits(editingTransaction.amount, currency).toString());
+      setAmountStr(toMajorUnits(editingTransaction.amount, txCurrency).toString());
       setDate(editingTransaction.date);
       setAccountId(editingTransaction.accountId);
       setToAccountId(editingTransaction.toAccountId || '');
@@ -182,15 +202,21 @@ export const TransactionModal: React.FC = () => {
         editingTransaction.subcategoryId ||
         (editingTransaction.paymentMethod && editingTransaction.paymentMethod !== 'credit_card')
       ));
+      setErrorMessage('');
       setIsKeypadOpen(false);
-      prevIsOpen.current = true;
-    } else if (isOpen && !prevIsOpen.current) {
+    } else {
+      const defaultAccId =
+        (selectedAccountId && selectableAccounts.some((a) => a.id === selectedAccountId)
+          ? selectedAccountId
+          : selectableAccounts[0]?.id) ?? '';
+      const defaultDestId = selectableAccounts.find((a) => a.id !== defaultAccId)?.id ?? '';
+
       setType('expense');
       setAmountStr('');
       setDate(getTodayString());
-      setAccountId(selectedAccountId || (accounts[0]?.id ?? ''));
-      setToAccountId(accounts[1]?.id ?? '');
-      setCategoryId(categories.find((c) => c.type === 'expense')?.id || '');
+      setAccountId(defaultAccId);
+      setToAccountId(defaultDestId);
+      setCategoryId(categories.find((c) => !c.parentId && c.type === 'expense')?.id || '');
       setSubcategoryId('');
       setMerchant('');
       setNotes('');
@@ -204,24 +230,24 @@ export const TransactionModal: React.FC = () => {
       setErrorMessage('');
       setShowMoreDetails(false);
       setIsKeypadOpen(false);
-      prevIsOpen.current = true;
-    } else if (!isOpen) {
-      setIsKeypadOpen(false);
-      prevIsOpen.current = false;
     }
-  }, [editingTransaction, isOpen, selectedAccountId, accounts, categories, currency]);
+  }, [editingTransaction, isOpen, selectedAccountId, accounts, categories, selectableAccounts]);
 
-  // Fallback if accounts or categories loaded after opening
+  // Fallback if accounts or categories finish loading after initial mount
   useEffect(() => {
     if (isOpen) {
-      if (!accountId && accounts.length > 0) {
-        setAccountId(selectedAccountId || accounts[0].id);
+      if (!accountId && selectableAccounts.length > 0) {
+        const defaultAcc = (selectedAccountId && selectableAccounts.find((a) => a.id === selectedAccountId)?.id) || selectableAccounts[0].id;
+        setAccountId(defaultAcc);
+        if (!toAccountId) {
+          setToAccountId(selectableAccounts.find((a) => a.id !== defaultAcc)?.id || '');
+        }
       }
       if (!categoryId && categories.length > 0) {
-        setCategoryId(categories.find((c) => c.type === type)?.id || categories[0].id);
+        setCategoryId(categories.find((c) => !c.parentId && c.type === type)?.id || categories[0].id);
       }
     }
-  }, [isOpen, accountId, categoryId, accounts, categories, selectedAccountId, type]);
+  }, [isOpen, accountId, toAccountId, categoryId, selectableAccounts, categories, selectedAccountId, type]);
 
   const handleClose = useCallback(() => {
     setIsKeypadOpen(false);
@@ -275,6 +301,7 @@ export const TransactionModal: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     const parsedAmount = toMinorUnits(amountStr, currency);
@@ -308,7 +335,7 @@ export const TransactionModal: React.FC = () => {
       const validation = validateSplitSum(parsedAmount, splits);
       if (!validation.isValid) {
         setErrorMessage(
-          `Split amounts sum to ${validation.currentSum / 100}, but total is ${parsedAmount / 100}`
+          `Split amounts sum to ${formatMoney(validation.currentSum, currency)}, but total is ${formatMoney(parsedAmount, currency)}`
         );
         return;
       }
@@ -316,7 +343,8 @@ export const TransactionModal: React.FC = () => {
     }
 
     const txData: Transaction = {
-      id: editingTransaction ? editingTransaction.id : 'tx-' + Date.now(),
+      id: editingTransaction ? editingTransaction.id : generateId('tx'),
+      userId: editingTransaction?.userId,
       type,
       amount: parsedAmount,
       date,
@@ -336,6 +364,7 @@ export const TransactionModal: React.FC = () => {
       updatedAt: new Date().toISOString(),
     };
 
+    setIsSubmitting(true);
     try {
       if (editingTransaction) {
         await LedgerRepository.updateTransaction(txData);
@@ -345,6 +374,8 @@ export const TransactionModal: React.FC = () => {
       handleClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save transaction');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -373,7 +404,7 @@ export const TransactionModal: React.FC = () => {
               key={tType}
               type="button"
               onClick={() => handleTypeChange(tType)}
-              className={`h-10 sm:h-10.5 rounded-full text-xs font-semibold capitalize transition-all duration-150 cursor-pointer flex items-center justify-center ${
+              className={`h-10 sm:h-11 rounded-full text-xs font-semibold capitalize transition-all duration-150 cursor-pointer flex items-center justify-center ${
                 type === tType
                   ? 'bg-white dark:bg-zinc-800 text-zinc-950 dark:text-white shadow-sm'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
@@ -388,7 +419,7 @@ export const TransactionModal: React.FC = () => {
         <div
           data-testid="hero-amount-display"
           onClick={() => setIsKeypadOpen(true)}
-          className="py-3 sm:py-5 flex flex-col items-center justify-center text-center cursor-pointer select-none transition-transform active:scale-98"
+          className="py-3 sm:py-5 flex flex-col items-center justify-center text-center cursor-pointer select-none transition-transform active:scale-[0.98]"
           title="Click to enter amount"
         >
           <div className="relative inline-flex items-center justify-center max-w-full">
@@ -397,7 +428,6 @@ export const TransactionModal: React.FC = () => {
               data-keypad-input="true"
               inputMode="none"
               readOnly
-              required
               placeholder="0"
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
@@ -427,7 +457,7 @@ export const TransactionModal: React.FC = () => {
                     onChange={(e) => setAccountId(e.target.value)}
                     className="w-full text-right bg-transparent text-sm font-semibold text-zinc-900 dark:text-white outline-none cursor-pointer truncate"
                   >
-                    {accounts.map((acc) => (
+                    {selectableAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id} className="text-zinc-900 dark:text-white bg-white dark:bg-zinc-900">
                         {acc.name} ({acc.currency})
                       </option>
@@ -448,7 +478,7 @@ export const TransactionModal: React.FC = () => {
                     onChange={(e) => setToAccountId(e.target.value)}
                     className="w-full text-right bg-transparent text-sm font-semibold text-zinc-900 dark:text-white outline-none cursor-pointer truncate"
                   >
-                    {accounts.map((acc) => (
+                    {selectableAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id} className="text-zinc-900 dark:text-white bg-white dark:bg-zinc-900">
                         {acc.name} ({acc.currency})
                       </option>
@@ -460,7 +490,7 @@ export const TransactionModal: React.FC = () => {
           ) : (
             <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 shadow-sm focus-within:border-zinc-400 dark:focus-within:border-zinc-600 transition-all min-h-[3.5rem]">
               <CreditCard size={18} className="text-zinc-500 dark:text-zinc-400 shrink-0" />
-              {accounts.length === 0 ? (
+              {selectableAccounts.length === 0 ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -486,7 +516,7 @@ export const TransactionModal: React.FC = () => {
                     onChange={(e) => setAccountId(e.target.value)}
                     className="w-full bg-transparent text-sm font-semibold text-zinc-900 dark:text-white outline-none cursor-pointer truncate"
                   >
-                    {accounts.map((acc) => (
+                    {selectableAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id} className="text-zinc-900 dark:text-white bg-white dark:bg-zinc-900">
                         {acc.name}
                       </option>
@@ -578,6 +608,7 @@ export const TransactionModal: React.FC = () => {
                   splits={splits}
                   onChange={setSplits}
                   language={language}
+                  txType={type === 'income' ? 'income' : 'expense'}
                 />
               )}
             </div>
@@ -791,7 +822,8 @@ export const TransactionModal: React.FC = () => {
         <div className="pt-2">
           <button
             type="submit"
-            className="w-full h-12 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-md hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full h-12 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-bold text-sm tracking-wide flex items-center justify-center gap-2 shadow-md hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50"
           >
             <CreditCard size={17} />
             <span>

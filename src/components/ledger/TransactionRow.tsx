@@ -117,7 +117,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
               <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5">
                 <span>{tx.merchant}</span>
                 {hasSplits && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
                     {t('splitTransaction', language)} ({tx.splits?.length})
                   </span>
                 )}

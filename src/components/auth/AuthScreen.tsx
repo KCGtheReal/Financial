@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { LedgerRepository } from '../../db/repository';
 import { UserProfile } from '@contracts/api';
+import { generateId } from '../../utils/id';
 import { t } from '../../i18n';
 import { AppLogo } from '../common/AppLogo';
 import { 
@@ -20,7 +21,8 @@ export const AuthScreen: React.FC = () => {
     language, 
     setLanguage, 
     setUserProfile, 
-    setPinCode 
+    setPinCode,
+    setIsAppLocked
   } = useAppStore();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -64,7 +66,7 @@ export const AuthScreen: React.FC = () => {
     setIsSubmitting(true);
 
     const newProfile: UserProfile = {
-      id: 'usr-' + Date.now(),
+      id: generateId('usr'),
       name: name.trim(),
       email: email.trim().toLowerCase(),
       pinCode: pin,
@@ -77,9 +79,10 @@ export const AuthScreen: React.FC = () => {
     };
 
     try {
-      await LedgerRepository.saveUserProfile(newProfile);
-      setUserProfile(newProfile);
-      setPinCode(pin);
+      const savedProfile = await LedgerRepository.saveUserProfile(newProfile);
+      setUserProfile(savedProfile);
+      setPinCode(savedProfile.pinCode || pin);
+      setIsAppLocked(false);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to create account');
     } finally {
@@ -107,6 +110,7 @@ export const AuthScreen: React.FC = () => {
       if (res.success && res.user) {
         setUserProfile(res.user);
         if (res.user.pinCode) setPinCode(res.user.pinCode);
+        setIsAppLocked(false);
       } else {
         setErrorMessage(res.error || (language === 'km' ? 'ការផ្ទៀងផ្ទាត់មិនត្រឹមត្រូវ' : 'Invalid email or PIN'));
       }

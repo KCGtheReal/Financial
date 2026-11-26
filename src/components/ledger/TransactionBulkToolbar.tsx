@@ -122,7 +122,11 @@ export const TransactionBulkToolbar: React.FC = () => {
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Recategorize */}
           <button
-            onClick={() => setIsRecategorizeOpen(true)}
+            onClick={() => {
+              setSelectedCatId('');
+              setSelectedSubId('');
+              setIsRecategorizeOpen(true);
+            }}
             className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 dark:bg-zinc-900/10 hover:bg-white/20 dark:hover:bg-zinc-900/20 active:scale-90 transition-all text-white dark:text-zinc-950"
             title={t('bulkRecategorize', language)}
             aria-label={t('bulkRecategorize', language)}
@@ -289,12 +293,12 @@ export const TransactionBulkToolbar: React.FC = () => {
                   {t('noSubcategory', language)}
                 </button>
                 {subcategories.map((sub) => {
-                  const isSubSelected = selectedSubId === sub.name;
+                  const isSubSelected = selectedSubId === sub.id;
                   return (
                     <button
                       key={sub.id}
                       type="button"
-                      onClick={() => setSelectedSubId(sub.name)}
+                      onClick={() => setSelectedSubId(sub.id)}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 border ${
                         isSubSelected
                           ? 'bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 border-transparent shadow-sm'

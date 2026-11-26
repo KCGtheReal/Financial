@@ -56,7 +56,7 @@ export const CategoriesView: React.FC = () => {
       {/* Add Category Trigger */}
       <button
         onClick={() => setCategoryModalOpen(true)}
-        className="w-full py-3 px-4 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-2 text-xs font-semibold transition-all active:scale-98 shadow-sm"
+        className="w-full py-3 px-4 rounded-2xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-2 text-xs font-semibold transition-all active:scale-[0.98] shadow-sm"
       >
         <Plus size={16} />
         <span>{t('addCategoryOrSub', language)}</span>

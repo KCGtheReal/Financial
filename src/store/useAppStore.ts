@@ -14,7 +14,7 @@ interface AppState {
   setTheme: (theme: 'dark' | 'light') => void;
   language: Language;
   setLanguage: (lang: Language) => void;
-  
+
   // Privacy & Lock
   isPrivacyMode: boolean;
   togglePrivacyMode: () => void;
@@ -26,7 +26,7 @@ interface AppState {
   // Navigation & Selected Views
   selectedAccountId: string | null; // null = All Accounts
   setSelectedAccountId: (id: string | null) => void;
-  
+
   // Filters
   filter: LedgerFilter;
   setFilter: (filter: LedgerFilter | ((prev: LedgerFilter) => LedgerFilter)) => void;
@@ -61,10 +61,19 @@ interface AppState {
   // Admin Console Modal
   isAdminPanelOpen: boolean;
   setAdminPanelOpen: (open: boolean) => void;
+
+  // Cloud Sync UI State
+  isCloudSyncing: boolean;
+  lastCloudSyncAt: string | null;
+  setCloudSyncStatus: (syncing: boolean, syncedAt?: string | null) => void;
+
+  // Clean Session Reset (Sign Out / Account Switch)
+  resetSessionState: (nextProfile?: UserProfile | null) => void;
 }
 
-const initialTheme = (localStorage.getItem('apex_theme') as 'dark' | 'light') || 'dark';
-const initialLang = (localStorage.getItem('apex_lang') as Language) || 'en';
+const initialTheme = (typeof localStorage !== 'undefined' ? (localStorage.getItem('apex_theme') as 'dark' | 'light') : null) || 'dark';
+const initialLang = (typeof localStorage !== 'undefined' ? (localStorage.getItem('apex_lang') as Language) : null) || 'en';
+const initialLocked = typeof localStorage !== 'undefined' && localStorage.getItem('apex_app_locked') === 'true';
 
 export function syncThemeColor(theme: 'dark' | 'light') {
   if (typeof document === 'undefined') return;
@@ -102,28 +111,36 @@ export const useAppStore = create<AppState>((set) => ({
 
   theme: initialTheme,
   setTheme: (theme) => {
-    localStorage.setItem('apex_theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    if (typeof localStorage !== 'undefined') localStorage.setItem('apex_theme', theme);
+    if (typeof document !== 'undefined') {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      syncThemeColor(theme);
     }
-    syncThemeColor(theme);
     set({ theme });
   },
-  
+
   language: initialLang,
   setLanguage: (language) => {
-    localStorage.setItem('apex_lang', language);
-    document.documentElement.lang = language;
+    if (typeof localStorage !== 'undefined') localStorage.setItem('apex_lang', language);
+    if (typeof document !== 'undefined') document.documentElement.lang = language;
     set({ language });
   },
 
   isPrivacyMode: false,
   togglePrivacyMode: () => set((state) => ({ isPrivacyMode: !state.isPrivacyMode })),
 
-  isAppLocked: false,
-  setIsAppLocked: (isAppLocked) => set({ isAppLocked }),
+  isAppLocked: initialLocked,
+  setIsAppLocked: (isAppLocked) => {
+    if (typeof localStorage !== 'undefined') {
+      if (isAppLocked) localStorage.setItem('apex_app_locked', 'true');
+      else localStorage.removeItem('apex_app_locked');
+    }
+    set({ isAppLocked });
+  },
   pinCode: '1234',
   setPinCode: (pinCode) => set({ pinCode }),
 
@@ -139,7 +156,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   isQuickAddOpen: false,
   setQuickAddOpen: (isQuickAddOpen) => set({ isQuickAddOpen }),
-  
+
   isCommandPaletteOpen: false,
   setCommandPaletteOpen: (isCommandPaletteOpen) => set({ isCommandPaletteOpen }),
 
@@ -167,4 +184,34 @@ export const useAppStore = create<AppState>((set) => ({
 
   isAdminPanelOpen: false,
   setAdminPanelOpen: (isAdminPanelOpen) => set({ isAdminPanelOpen }),
+
+  isCloudSyncing: false,
+  lastCloudSyncAt: null,
+  setCloudSyncStatus: (isCloudSyncing, syncedAt) =>
+    set((state) => ({
+      isCloudSyncing,
+      lastCloudSyncAt: syncedAt !== undefined ? syncedAt : state.lastCloudSyncAt,
+    })),
+
+  resetSessionState: (nextProfile = null) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('apex_app_locked');
+    }
+    set({
+      userProfile: nextProfile,
+      activeTab: 'ledger',
+      selectedAccountId: null,
+      filter: {},
+      isQuickAddOpen: false,
+      isCommandPaletteOpen: false,
+      isAccountModalOpen: false,
+      isCategoryModalOpen: false,
+      isFilterModalOpen: false,
+      editingTransaction: null,
+      editingAccount: null,
+      isAuthModalOpen: false,
+      isAdminPanelOpen: false,
+      isAppLocked: false,
+    });
+  },
 }));

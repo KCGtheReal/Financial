@@ -3,7 +3,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { LedgerRepository } from '../../db/repository';
 import { Modal } from '../common/Modal';
 import { Account, AccountType } from '@contracts/api';
-import { CURRENCIES, toMinorUnits, toMajorUnits } from '../../utils/money';
+import { CURRENCIES, getCurrency, toMinorUnits, toMajorUnits } from '../../utils/money';
+import { generateId } from '../../utils/id';
 import { t } from '../../i18n';
 import { Archive, Trash2 } from 'lucide-react';
 
@@ -46,6 +47,8 @@ export const AccountModal: React.FC = () => {
   const [accountNumberMask, setAccountNumberMask] = useState('');
   const [isArchived, setIsArchived] = useState(false);
   const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (editingAccount) {
@@ -69,50 +72,68 @@ export const AccountModal: React.FC = () => {
       setIsArchived(false);
       setNotes('');
     }
+    setErrorMessage('');
   }, [editingAccount, isAccountModalOpen]);
 
   const handleClose = useCallback(() => {
     setAccountModalOpen(false);
     setEditingAccount(null);
+    setErrorMessage('');
   }, [setAccountModalOpen, setEditingAccount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (isSubmitting || !name.trim()) return;
 
-    const minorUnits = toMinorUnits(initialBalanceStr, currency);
+    setErrorMessage('');
+    setIsSubmitting(true);
+    try {
+      const minorUnits = toMinorUnits(initialBalanceStr, currency);
 
-    const accountData: Account = {
-      id: editingAccount ? editingAccount.id : 'acc-' + Date.now(),
-      name: name.trim(),
-      type,
-      currency,
-      initialBalance: minorUnits,
-      currentBalance: editingAccount ? editingAccount.currentBalance : minorUnits,
-      color,
-      icon: 'Landmark',
-      isArchived,
-      institutionName: institutionName.trim() || undefined,
-      accountNumberMask: accountNumberMask.trim() || undefined,
-      notes: notes.trim() || undefined,
-      createdAt: editingAccount ? editingAccount.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      const accountData: Account = {
+        id: editingAccount ? editingAccount.id : generateId('acc'),
+        userId: editingAccount?.userId,
+        name: name.trim(),
+        type,
+        currency,
+        initialBalance: minorUnits,
+        currentBalance: editingAccount ? editingAccount.currentBalance : minorUnits,
+        color,
+        icon: 'Landmark',
+        isArchived,
+        institutionName: institutionName.trim() || undefined,
+        accountNumberMask: accountNumberMask.trim() || undefined,
+        notes: notes.trim() || undefined,
+        createdAt: editingAccount ? editingAccount.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    if (editingAccount) {
-      await LedgerRepository.updateAccount(accountData);
-    } else {
-      await LedgerRepository.createAccount(accountData);
+      if (editingAccount) {
+        await LedgerRepository.updateAccount(accountData);
+      } else {
+        await LedgerRepository.createAccount(accountData);
+      }
+
+      handleClose();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to save account');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    handleClose();
   };
 
   const handleDelete = async () => {
-    if (!editingAccount) return;
+    if (!editingAccount || isSubmitting) return;
     if (confirm(`Delete account "${editingAccount.name}" and all its linked transactions?`)) {
-      await LedgerRepository.deleteAccount(editingAccount.id);
-      handleClose();
+      setIsSubmitting(true);
+      try {
+        await LedgerRepository.deleteAccount(editingAccount.id);
+        handleClose();
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Failed to delete account');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -125,6 +146,12 @@ export const AccountModal: React.FC = () => {
       maxWidth="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {errorMessage && (
+          <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-medium">
+            {errorMessage}
+          </div>
+        )}
+
         {/* Name */}
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -184,7 +211,7 @@ export const AccountModal: React.FC = () => {
           </label>
           <input
             type="number"
-            step="0.01"
+            step={getCurrency(currency).decimals === 0 ? '1' : '0.01'}
             value={initialBalanceStr}
             onChange={(e) => setInitialBalanceStr(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white font-mono outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
@@ -284,7 +311,8 @@ export const AccountModal: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="flex-1 sm:flex-none px-6 py-2.5 text-xs rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold hover:opacity-90 text-center shadow-sm"
+              disabled={isSubmitting}
+              className="flex-1 sm:flex-none px-6 py-2.5 text-xs rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold hover:opacity-90 text-center shadow-sm disabled:opacity-50"
             >
               {t('save', language)}
             </button>

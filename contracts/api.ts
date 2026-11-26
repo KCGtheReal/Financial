@@ -39,6 +39,7 @@ export interface CurrencyConfig {
 
 export interface Account {
   id: string;
+  userId?: string;
   name: string;
   type: AccountType;
   currency: string;             // ISO 4217 code
@@ -64,6 +65,7 @@ export interface TransactionSplit {
 
 export interface Transaction {
   id: string;
+  userId?: string;
   type: TransactionType;
   amount: number;               // Integer in minor units (always positive)
   date: string;                 // YYYY-MM-DD
@@ -86,6 +88,7 @@ export interface Transaction {
 
 export interface Category {
   id: string;
+  userId?: string;
   name: string;
   type: 'expense' | 'income';
   icon: string;
@@ -93,6 +96,7 @@ export interface Category {
   parentId?: string;            // If subcategory, points to parent Category.id
   isSystem?: boolean;           // Default built-in categories
   order: number;
+  createdAt?: string;
 }
 
 export interface LedgerFilter {
@@ -111,11 +115,24 @@ export interface LedgerFilter {
 
 export interface SavedFilter {
   id: string;
+  userId?: string;
   name: string;
   filter: LedgerFilter;
   color?: string;
   icon?: string;
   createdAt: string;
+}
+
+export type SyncEntityTable = 'accounts' | 'transactions' | 'categories';
+export type SyncOperation = 'upsert' | 'delete';
+
+export interface SyncQueueItem {
+  id: string;                   // `${table}:${entityId}`
+  table: SyncEntityTable;
+  entityId: string;
+  operation: SyncOperation;
+  userId: string;
+  timestamp: number;
 }
 
 export interface LedgerHistoryAction {

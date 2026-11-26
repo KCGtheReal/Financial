@@ -10,6 +10,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/db';
 import { LedgerRepository } from '../../db/repository';
 import { getDateRangePresets } from '../../utils/date';
+import { generateId } from '../../utils/id';
 import { Modal } from '../common/Modal';
 import { t } from '../../i18n';
 
@@ -57,7 +58,7 @@ export const FilterBar: React.FC = () => {
     if (!filterPresetName.trim()) return;
 
     await LedgerRepository.saveFilter({
-      id: 'flt-' + Date.now(),
+      id: generateId('flt'),
       name: filterPresetName.trim(),
       filter: { ...filter },
       createdAt: new Date().toISOString(),
@@ -68,7 +69,7 @@ export const FilterBar: React.FC = () => {
   };
 
   return (
-    <div className="w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-850 px-4 sm:px-6 py-2.5 transition-colors duration-200">
+    <div className="w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800/80 px-4 sm:px-6 py-2.5 transition-colors duration-200">
       <div className="max-w-md sm:max-w-7xl mx-auto space-y-2.5">
         {/* Main Search Input */}
         <div className="flex items-center gap-2">
@@ -183,7 +184,7 @@ export const FilterBar: React.FC = () => {
                 const saved = savedFilters.find((f) => f.id === e.target.value);
                 if (saved) setFilter(saved.filter);
               }}
-              defaultValue=""
+              value=""
               className="text-xs px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 outline-none flex-shrink-0"
             >
               <option value="" disabled>

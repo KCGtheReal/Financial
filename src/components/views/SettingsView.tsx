@@ -17,7 +17,9 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { useLedgerStore } from '../../store/useLedgerStore';
 import { LedgerRepository } from '../../db/repository';
+import { historyManager } from '../../utils/history';
 import { t } from '../../i18n';
 import { Modal } from '../common/Modal';
 import { AppLogo } from '../common/AppLogo';
@@ -34,32 +36,51 @@ export const SettingsView: React.FC = () => {
     pinCode,
     setPinCode,
     userProfile,
+    setUserProfile,
     setAuthModalOpen,
     setAuthMode,
     setAdminPanelOpen,
+    resetSessionState,
   } = useAppStore();
 
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [pinSuccess, setPinSuccess] = useState(false);
+  const [pinError, setPinError] = useState('');
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
 
-  const handleUpdatePin = (e: React.FormEvent) => {
+  const handleUpdatePin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPin.length === 4 && /^\d+$/.test(newPin)) {
+    setPinError('');
+
+    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+      setPinError(language === 'km' ? 'លេខកូដសម្ងាត់ត្រូវមាន ៤ ខ្ទង់' : 'PIN must be exactly 4 numeric digits');
+      return;
+    }
+
+    try {
+      if (userProfile?.id) {
+        await LedgerRepository.updateUserPin(userProfile.id, newPin);
+        setUserProfile({ ...userProfile, pinCode: newPin, updatedAt: new Date().toISOString() });
+      }
       setPinCode(newPin);
       setPinSuccess(true);
       setTimeout(() => {
         setPinSuccess(false);
         setIsPinModalOpen(false);
         setNewPin('');
-      }, 1000);
+      }, 900);
+    } catch (err: any) {
+      setPinError(err?.message || 'Failed to update PIN');
     }
   };
 
   const handleSignOut = async () => {
     if (confirm(t('signOutConfirm', language))) {
       const loggedOut = await LedgerRepository.logoutUser();
-      useAppStore.getState().setUserProfile(loggedOut);
+      useLedgerStore.getState().clearSelection();
+      historyManager.clear();
+      resetSessionState(loggedOut);
     }
   };
 
@@ -140,40 +161,42 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Admin Console Card */}
-      <div className="space-y-2">
-        <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
-          {t('adminConsole', language)}
-        </span>
+      {/* Admin Console Card (Restricted strictly to Admin accounts) */}
+      {userProfile?.role === 'admin' && (
+        <div className="space-y-2">
+          <span className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-1 font-bold">
+            {t('adminConsole', language)}
+          </span>
 
-        <div
-          onClick={() => setAdminPanelOpen(true)}
-          className="p-4 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.99] transition-all cursor-pointer shadow-sm flex items-center justify-between gap-3 group"
-        >
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-              <ShieldCheck size={20} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-zinc-900 dark:text-white">
-                  {t('adminConsole', language)}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                  {userProfile?.role === 'admin' ? t('roleAdmin', language) : 'Console'}
+          <div
+            onClick={() => setAdminPanelOpen(true)}
+            className="p-4 rounded-3xl bg-white dark:bg-[#121214] border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.99] transition-all cursor-pointer shadow-sm flex items-center justify-between gap-3 group"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-zinc-900 dark:text-white">
+                    {t('adminConsole', language)}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                    {t('roleAdmin', language)}
+                  </span>
+                </div>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 block mt-0.5 truncate">
+                  {t('adminConsoleDesc', language)}
                 </span>
               </div>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 block mt-0.5 truncate">
-                {t('adminConsoleDesc', language)}
-              </span>
+            </div>
+
+            <div className="flex items-center gap-1 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors flex-shrink-0 pr-1">
+              <ChevronRight size={18} />
             </div>
           </div>
-
-          <div className="flex items-center gap-1 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors flex-shrink-0 pr-1">
-            <ChevronRight size={18} />
-          </div>
         </div>
-      </div>
+      )}
 
       {/* Security & Privacy Section */}
       <div className="space-y-2">
@@ -223,9 +246,17 @@ export const SettingsView: React.FC = () => {
                 <span className="text-sm font-semibold text-zinc-900 dark:text-white block">
                   {t('appPinLock', language)}
                 </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-                  {t('currentPin', language)}: {pinCode}
-                </span>
+                <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                  <span>{t('currentPin', language)}: {showCurrentPin ? pinCode : '••••'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPin(!showCurrentPin)}
+                    className="p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                    aria-label={showCurrentPin ? 'Hide PIN' : 'Show PIN'}
+                  >
+                    {showCurrentPin ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </button>
+                </div>
               </div>
             </div>
             <button
@@ -342,7 +373,10 @@ export const SettingsView: React.FC = () => {
       {/* Change PIN Modal */}
       <Modal
         isOpen={isPinModalOpen}
-        onClose={() => setIsPinModalOpen(false)}
+        onClose={() => {
+          setIsPinModalOpen(false);
+          setPinError('');
+        }}
         title={t('changePinTitle', language)}
         subtitle={t('changePinDesc', language)}
         maxWidth="sm"
@@ -360,10 +394,16 @@ export const SettingsView: React.FC = () => {
               required
               placeholder="••••"
               value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
               className="w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-center font-mono text-2xl tracking-widest text-zinc-900 dark:text-white outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
             />
           </div>
+
+          {pinError && (
+            <div className="text-center text-xs text-rose-600 dark:text-rose-400 font-medium">
+              {pinError}
+            </div>
+          )}
 
           {pinSuccess && (
             <div className="text-center text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-center gap-1">

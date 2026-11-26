@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { TransactionSplit, Category } from '@contracts/api';
 import { formatMoney, toMinorUnits, toMajorUnits, validateSplitSum } from '../../utils/money';
+import { generateId } from '../../utils/id';
 import { t } from '../../i18n';
 
 interface SplitTransactionFormProps {
@@ -11,6 +12,7 @@ interface SplitTransactionFormProps {
   splits: TransactionSplit[];
   onChange: (splits: TransactionSplit[]) => void;
   language: 'en' | 'km';
+  txType?: 'expense' | 'income';
 }
 
 export const SplitTransactionForm: React.FC<SplitTransactionFormProps> = ({
@@ -20,15 +22,16 @@ export const SplitTransactionForm: React.FC<SplitTransactionFormProps> = ({
   splits,
   onChange,
   language,
+  txType,
 }) => {
   const { isValid, difference, currentSum } = validateSplitSum(totalAmount, splits);
 
-  const parentCategories = categories.filter((c) => !c.parentId);
+  const parentCategories = categories.filter((c) => !c.parentId && (!txType || c.type === txType));
 
   const handleAddSplit = () => {
     const remaining = Math.max(0, totalAmount - currentSum);
     const newSplit: TransactionSplit = {
-      id: 'split-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      id: generateId('split'),
       amount: remaining,
       categoryId: parentCategories[0]?.id || '',
       notes: '',

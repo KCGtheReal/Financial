@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../common/Modal';
 import { useAppStore } from '../../store/useAppStore';
+import { useLedgerStore } from '../../store/useLedgerStore';
 import { LedgerRepository } from '../../db/repository';
+import { historyManager } from '../../utils/history';
+import { generateId } from '../../utils/id';
 import { UserProfile } from '@contracts/api';
 import { t } from '../../i18n';
 import { 
@@ -67,6 +70,7 @@ export const AuthModal: React.FC = () => {
   const [bio, setBio] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync form when modal opens or profile changes
   useEffect(() => {
@@ -102,6 +106,7 @@ export const AuthModal: React.FC = () => {
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     if (!name.trim()) {
@@ -118,7 +123,7 @@ export const AuthModal: React.FC = () => {
     }
 
     const newProfile: UserProfile = {
-      id: 'usr-' + Date.now(),
+      id: generateId('usr'),
       name: name.trim(),
       email: email.trim().toLowerCase(),
       pinCode: pin,
@@ -131,21 +136,25 @@ export const AuthModal: React.FC = () => {
       updatedAt: new Date().toISOString(),
     };
 
+    setIsSubmitting(true);
     try {
-      await LedgerRepository.saveUserProfile(newProfile);
-      setUserProfile(newProfile);
+      const saved = await LedgerRepository.saveUserProfile(newProfile);
+      setUserProfile(saved);
       setPinCode(pin);
       setSuccessMessage(t('accountCreatedSuccess', language));
       setTimeout(() => {
         handleClose();
       }, 700);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to create real account');
+      setErrorMessage(err.message || 'Failed to create account');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     if (!email.trim()) {
@@ -157,6 +166,7 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const res = await LedgerRepository.loginUser(email, pin);
       if (res.success && res.user) {
@@ -171,12 +181,14 @@ export const AuthModal: React.FC = () => {
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userProfile) return;
+    if (!userProfile || isSubmitting) return;
     setErrorMessage('');
 
     if (!name.trim()) {
@@ -196,9 +208,10 @@ export const AuthModal: React.FC = () => {
       updatedAt: new Date().toISOString(),
     };
 
+    setIsSubmitting(true);
     try {
-      await LedgerRepository.saveUserProfile(updatedProfile);
-      setUserProfile(updatedProfile);
+      const saved = await LedgerRepository.saveUserProfile(updatedProfile);
+      setUserProfile(saved);
       if (pin.length === 4) setPinCode(pin);
       setSuccessMessage('Profile updated successfully!');
       setTimeout(() => {
@@ -206,13 +219,17 @@ export const AuthModal: React.FC = () => {
       }, 700);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to update profile');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSignOut = async () => {
     if (confirm(t('signOutConfirm', language))) {
       const loggedOut = await LedgerRepository.logoutUser();
-      setUserProfile(loggedOut);
+      useLedgerStore.getState().clearSelection();
+      historyManager.clear();
+      useAppStore.getState().resetSessionState(loggedOut);
       setAuthMode('signin');
     }
   };
@@ -228,7 +245,7 @@ export const AuthModal: React.FC = () => {
 
   const modalSubtitle =
     authMode === 'signup'
-      ? 'Set up your verified local personal finance account'
+      ? 'Set up your personal finance account with cloud sync'
       : authMode === 'signin'
       ? 'Access your private ledger and financial assets'
       : 'Manage identity, credentials, and ledger preferences';
@@ -382,8 +399,9 @@ export const AuthModal: React.FC = () => {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 data-testid="auth-submit-btn"
-                className="px-5 py-2.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-98"
+                className="px-5 py-2.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 {t('signUp', language)}
               </button>
@@ -441,7 +459,8 @@ export const AuthModal: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-98"
+                disabled={isSubmitting}
+                className="px-5 py-2.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 {t('signIn', language)}
               </button>
@@ -456,7 +475,7 @@ export const AuthModal: React.FC = () => {
             <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0">
                 <div 
-                  className="w-13 h-13 rounded-2xl flex items-center justify-center text-white shadow-md flex-shrink-0"
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md flex-shrink-0"
                   style={{ backgroundColor: avatarColor }}
                 >
                   <SelectedIconComponent size={24} />
@@ -528,7 +547,7 @@ export const AuthModal: React.FC = () => {
                     onClick={() => setAvatarColor(col)}
                     className={`w-7 h-7 rounded-xl transition-transform ${
                       avatarColor === col 
-                        ? 'scale-115 ring-2 ring-zinc-950 dark:ring-white ring-offset-2 ring-offset-white dark:ring-offset-black' 
+                        ? 'scale-110 ring-2 ring-zinc-950 dark:ring-white ring-offset-2 ring-offset-white dark:ring-offset-black' 
                         : 'opacity-75 hover:opacity-100'
                     }`}
                     style={{ backgroundColor: col }}
@@ -590,7 +609,8 @@ export const AuthModal: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-98"
+                disabled={isSubmitting}
+                className="px-5 py-2.5 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs font-bold shadow-md hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 {t('save', language)}
               </button>

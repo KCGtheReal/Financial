@@ -1,6 +1,22 @@
 # Living Task Board: ApexFinance PWA
 
-## Current Sprint: Phase 1 Core Ledger Stabilization & Mobile B&W Polish
+## Current Sprint: Pre-Launch Full Code Audit & Multi-Device Supabase Cloud Sync
+**Stakeholder**: User (Executive)  
+**Status**: COMPLETED & VERIFIED  
+**Architecture Source of Truth**: `contracts/api.ts`
+
+### Phase 2 Task Matrix
+
+| ID | Department | Task Description | Status | Verification Gate |
+| :--- | :--- | :--- | :--- | :--- |
+| **SYNC-02** | `@architect` / `@backend` | End-to-End Multi-Device Sync Engine: wired `CloudSyncService` into every `LedgerRepository` CRUD, bulk, undo/redo, profile, PIN, and role action; added `syncQueue` offline retry store (Dexie v3), bidirectional `syncWithCloud` reconciler with pre-fix local backfill, cross-user device isolation (`prepareDeviceForUser`), required `transactions.currency`, and automatic `42703` / `PGRST204` extended-column fallback matching live Supabase schema | DONE | Verified with unit tests + live schema compatibility |
+| **SYNC-03** | `@frontend` / `@backend` | Real-Time & Lifecycle Cloud Refresh: added background sync triggers on launch, window focus, visibility change, network `online`, tab switch, Supabase Realtime `postgres_changes`, and 1-tap `Sync Cloud` option in `Header` menu | DONE | Multi-device sync triggers active without visual clutter |
+| **AUDIT-01** | `@backend` | Ledger Math, Filter & Security Fixes: fixed `filterTransactions` `subcategoryId` matching (single & split), preserved unchanged `account.updatedAt` in `recalculateAllAccountBalances()`, updated `SettingsView` PIN change to persist in Dexie/Supabase & mask PIN behind toggle, gated Admin Console UI strictly to `role === 'admin'`, cleared session state & selection on Sign Out | DONE | Verified by `tests/sync-and-audit.test.ts` |
+| **AUDIT-02** | `@frontend` / `@designer` | Pre-Launch UI & Form Hardening: fixed multi-currency totals in `TransactionTable` (grouped per currency instead of hardcoded USD), fixed `TransactionBulkToolbar` storing `sub.name` instead of `sub.id`, stopped `TransactionModal` resetting edits when switching accounts/currencies, excluded archived accounts, added physical keyboard support to `PinLockScreen` + `Escape` to `CommandPalette`, added submit guards & replaced non-standard Tailwind classes (`active:scale-98`, `w-13 h-13`, `py-0.2`, `zinc-850`, `scale-115`) | DONE | Verified zero TypeScript, build, and test errors |
+
+---
+
+## Previous Sprint: Phase 1 Core Ledger Stabilization & Mobile B&W Polish
 **Stakeholder**: User (Executive)  
 **Status**: COMPLETED & VERIFIED  
 **Architecture Source of Truth**: `contracts/api.ts`
@@ -74,7 +90,8 @@
 - [x] Quick Add `+` Button: opens the New Transaction bottom sheet without crashing
 - [x] Scroll Position Reset: every tab starts at the top (`top: 0`); tapping active tab smoothly scrolls to top
 - [x] Error Boundary: safely intercepts any runtime errors with a clean recovery screen
-- [x] Zero TypeScript errors, zero build errors, 100% unit & integration tests passing (61/61 tests)
+- [x] Zero TypeScript errors, zero build errors, 100% unit & integration tests passing (74/74 tests across 10 test suites)
+- [x] Pre-Launch Full Audit & Multi-Device Sync: bidirectional `syncWithCloud` reconciler with offline `syncQueue` retry and pre-fix backfill, automatic live-schema fallback (`42703` / `PGRST204`), cross-user isolation, subcategory filtering, per-currency summaries, masked/persisted PINs, and admin role gating
 - [x] Harmonized Global Typography: coherent font scale across all views, eliminating oversized auth/modal inputs and microscopic list labels
 - [x] Production Brand Identity & PWA Icons: custom architectural Apex logo with full suite of favicons, Android adaptive icons, iOS touch icons, and social sharing cards (`og-image.png`)
 - [x] Multi-Device Architecture: dual support for instant device-to-device file transfer and automated Supabase cloud database sync across unlimited phones and browsers

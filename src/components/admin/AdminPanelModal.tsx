@@ -357,7 +357,7 @@ export const AdminPanelModal: React.FC = () => {
                         <KeyRound size={12} className="text-zinc-400" />
                         <span>PIN:</span>
                         <span className="font-bold tracking-wider">
-                          {isPinRevealed ? (user.pinCode || '1234') : '••••'}
+                          {isPinRevealed ? (user.pinCode || '••••') : '••••'}
                         </span>
                         <button
                           type="button"

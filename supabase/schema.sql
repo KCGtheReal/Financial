@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   avatar TEXT DEFAULT 'User',
   avatar_color TEXT DEFAULT '#09090B',
   currency TEXT DEFAULT 'USD',
+  bio TEXT,
   is_logged_in BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -33,6 +34,9 @@ CREATE TABLE IF NOT EXISTS public.accounts (
   is_archived BOOLEAN DEFAULT false,
   color TEXT,
   icon TEXT,
+  institution_name TEXT,
+  account_number_mask TEXT,
+  notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -47,6 +51,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   amount NUMERIC NOT NULL,
   currency TEXT NOT NULL,
   date TEXT NOT NULL,
+  time TEXT,
   account_id TEXT REFERENCES public.accounts(id) ON DELETE CASCADE,
   to_account_id TEXT,
   category_id TEXT,
@@ -57,6 +62,9 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   payment_method TEXT DEFAULT 'cash',
   tags TEXT[] DEFAULT '{}',
   is_split BOOLEAN DEFAULT false,
+  splits JSONB,
+  attachment_data TEXT,
+  attachment_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -77,6 +85,18 @@ CREATE TABLE IF NOT EXISTS public.categories (
   is_system BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_categories_user_id ON public.categories (user_id);
+
+-- 4B. IDEMPOTENT COLUMN MIGRATIONS FOR EXISTING INSTALLATIONS
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS institution_name TEXT;
+ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS account_number_mask TEXT;
+ALTER TABLE public.accounts ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS time TEXT;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS splits JSONB;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS attachment_data TEXT;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS attachment_name TEXT;
 
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES
 -- Enable Row Level Security

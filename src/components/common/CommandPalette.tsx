@@ -33,20 +33,25 @@ export const CommandPalette: React.FC = () => {
     language,
     setLanguage,
     setAccountModalOpen,
+    setEditingAccount,
     setCategoryModalOpen,
     resetFilter,
     setAdminPanelOpen,
+    userProfile,
   } = useAppStore();
 
   const { incrementHistoryRevision } = useLedgerStore();
   const [query, setQuery] = useState('');
 
-  // Keyboard shortcut listener: Ctrl+K / Cmd+K
+  // Keyboard shortcut listener: Ctrl+K / Cmd+K and Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(!isCommandPaletteOpen);
+      } else if (isCommandPaletteOpen && e.key === 'Escape') {
+        e.preventDefault();
+        setCommandPaletteOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -89,17 +94,21 @@ export const CommandPalette: React.FC = () => {
         setCommandPaletteOpen(false);
       },
     },
-    {
-      id: 'admin',
-      title: 'Admin Console',
-      subtitle: 'System metrics, user directory, and PIN management',
-      shortcut: 'A',
-      icon: ShieldCheck,
-      action: () => {
-        setCommandPaletteOpen(false);
-        setAdminPanelOpen(true);
-      },
-    },
+    ...(userProfile?.role === 'admin'
+      ? [
+          {
+            id: 'admin',
+            title: 'Admin Console',
+            subtitle: 'System metrics, user directory, and PIN management',
+            shortcut: 'A',
+            icon: ShieldCheck,
+            action: () => {
+              setCommandPaletteOpen(false);
+              setAdminPanelOpen(true);
+            },
+          },
+        ]
+      : []),
     {
       id: 'theme',
       title: theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme',
@@ -127,6 +136,7 @@ export const CommandPalette: React.FC = () => {
       icon: Layers,
       action: () => {
         setCommandPaletteOpen(false);
+        setEditingAccount(null);
         setAccountModalOpen(true);
       },
     },
