@@ -7,7 +7,15 @@ import { PullToRefresh } from '../src/components/common/PullToRefresh';
 import { AuthModal } from '../src/components/auth/AuthModal';
 import { db, DEFAULT_CATEGORIES, recalculateAllAccountBalances } from '../src/db/db';
 import { LedgerRepository } from '../src/db/repository';
-import { CloudSyncService } from '../src/db/supabase';
+import {
+  CloudSyncService,
+  decodeAccountIcon,
+  decodeTransactionTags,
+  decodeUserAvatar,
+  encodeAccountIcon,
+  encodeTransactionTags,
+  encodeUserAvatar,
+} from '../src/db/supabase';
 import { useAppStore } from '../src/store/useAppStore';
 import { useLedgerStore } from '../src/store/useLedgerStore';
 import { TransactionTable } from '../src/components/ledger/TransactionTable';
@@ -745,5 +753,45 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
         updatedAt: nowIso(),
       })
     ).rejects.toThrow(/already exists/i);
+  });
+
+  it('round-trips extended account, user bio, and transaction metadata safely when extended cloud columns are unavailable', () => {
+    const packedIcon = encodeAccountIcon('Landmark', {
+      institutionName: 'Wallet',
+      accountNumberMask: '2123',
+      notes: 'Daily spending',
+    });
+    expect(packedIcon.startsWith('Landmark::__apex__:')).toBe(true);
+    expect(decodeAccountIcon(packedIcon)).toEqual({
+      icon: 'Landmark',
+      institutionName: 'Wallet',
+      accountNumberMask: '2123',
+      notes: 'Daily spending',
+    });
+    expect(encodeAccountIcon('Landmark::__apex__:{"i":"Old"}', {})).toBe('Landmark');
+
+    const packedAvatar = encodeUserAvatar('User', 'Save is the goal');
+    expect(decodeUserAvatar(packedAvatar)).toEqual({
+      avatar: 'User',
+      bio: 'Save is the goal',
+    });
+    expect(encodeUserAvatar(packedAvatar, undefined)).toBe('User');
+
+    const packedTags = encodeTransactionTags(
+      ['groceries', 'urgent'],
+      {
+        time: '14:30:00',
+        splits: [{ id: 's1', categoryId: 'cat-exp-food', amount: 500 }],
+        attachmentName: 'receipt.jpg',
+      },
+      true
+    );
+    expect(decodeTransactionTags(packedTags)).toEqual({
+      tags: ['groceries', 'urgent'],
+      time: '14:30:00',
+      splits: [{ id: 's1', categoryId: 'cat-exp-food', amount: 500 }],
+      attachmentName: 'receipt.jpg',
+    });
+    expect(encodeTransactionTags(packedTags, {}, false)).toEqual(['groceries', 'urgent']);
   });
 });

@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Account, Category, SyncEntityTable, SyncQueueItem, Transaction, UserProfile } from '@contracts/api';
+import { Account, Category, SyncEntityTable, SyncQueueItem, Transaction, TransactionSplit, UserProfile } from '@contracts/api';
 import { db, recalculateAllAccountBalances } from './db';
 
 // Read Vite / Vercel environment variables safely, with fallback to the configured project
@@ -61,6 +61,111 @@ function toTimestampMs(iso?: string): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+const APEX_META_SEP = '::__apex__:';
+const APEX_TX_TAG_PREFIX = '__apex_meta__:';
+
+export function decodeAccountIcon(rawIcon?: string): {
+  icon: string;
+  institutionName?: string;
+  accountNumberMask?: string;
+  notes?: string;
+} {
+  const base = rawIcon || 'Landmark';
+  const idx = base.indexOf(APEX_META_SEP);
+  if (idx === -1) return { icon: base };
+  const cleanIcon = base.slice(0, idx) || 'Landmark';
+  try {
+    const meta = JSON.parse(base.slice(idx + APEX_META_SEP.length));
+    return {
+      icon: cleanIcon,
+      institutionName: typeof meta?.i === 'string' && meta.i ? meta.i : undefined,
+      accountNumberMask: typeof meta?.m === 'string' && meta.m ? meta.m : undefined,
+      notes: typeof meta?.n === 'string' && meta.n ? meta.n : undefined,
+    };
+  } catch {
+    return { icon: cleanIcon };
+  }
+}
+
+export function encodeAccountIcon(
+  icon: string | undefined,
+  account: Pick<Account, 'institutionName' | 'accountNumberMask' | 'notes'>
+): string {
+  const cleanIcon = decodeAccountIcon(icon).icon;
+  const meta: Record<string, string> = {};
+  if (account.institutionName) meta.i = account.institutionName;
+  if (account.accountNumberMask) meta.m = account.accountNumberMask;
+  if (account.notes) meta.n = account.notes;
+  if (Object.keys(meta).length === 0) return cleanIcon;
+  return `${cleanIcon}${APEX_META_SEP}${JSON.stringify(meta)}`;
+}
+
+export function decodeUserAvatar(rawAvatar?: string): { avatar: string; bio?: string } {
+  const base = rawAvatar || 'User';
+  const idx = base.indexOf(APEX_META_SEP);
+  if (idx === -1) return { avatar: base };
+  const cleanAvatar = base.slice(0, idx) || 'User';
+  try {
+    const meta = JSON.parse(base.slice(idx + APEX_META_SEP.length));
+    return {
+      avatar: cleanAvatar,
+      bio: typeof meta?.b === 'string' && meta.b ? meta.b : undefined,
+    };
+  } catch {
+    return { avatar: cleanAvatar };
+  }
+}
+
+export function encodeUserAvatar(avatar: string | undefined, bio?: string): string {
+  const cleanAvatar = decodeUserAvatar(avatar).avatar;
+  if (!bio) return cleanAvatar;
+  return `${cleanAvatar}${APEX_META_SEP}${JSON.stringify({ b: bio })}`;
+}
+
+export function decodeTransactionTags(rawTags: unknown): {
+  tags: string[];
+  time?: string;
+  splits?: TransactionSplit[];
+  attachmentName?: string;
+} {
+  const arr = Array.isArray(rawTags) ? rawTags.map((t) => String(t)) : [];
+  const tags: string[] = [];
+  let time: string | undefined;
+  let splits: TransactionSplit[] | undefined;
+  let attachmentName: string | undefined;
+
+  for (const item of arr) {
+    if (item.startsWith(APEX_TX_TAG_PREFIX)) {
+      try {
+        const meta = JSON.parse(item.slice(APEX_TX_TAG_PREFIX.length));
+        if (typeof meta?.t === 'string' && meta.t) time = meta.t;
+        if (Array.isArray(meta?.s) && meta.s.length > 0) splits = meta.s;
+        if (typeof meta?.a === 'string' && meta.a) attachmentName = meta.a;
+      } catch {
+        // Ignore malformed metadata tag
+      }
+    } else {
+      tags.push(item);
+    }
+  }
+  return { tags, time, splits, attachmentName };
+}
+
+export function encodeTransactionTags(
+  rawTags: string[] | undefined,
+  tx: Pick<Transaction, 'time' | 'splits' | 'attachmentName'>,
+  includePackedMeta: boolean
+): string[] {
+  const cleanTags = (Array.isArray(rawTags) ? rawTags : []).filter((t) => !String(t).startsWith(APEX_TX_TAG_PREFIX));
+  if (!includePackedMeta) return cleanTags;
+  const meta: Record<string, any> = {};
+  if (tx.time) meta.t = tx.time;
+  if (Array.isArray(tx.splits) && tx.splits.length > 0) meta.s = tx.splits;
+  if (tx.attachmentName) meta.a = tx.attachmentName;
+  if (Object.keys(meta).length === 0) return cleanTags;
+  return [...cleanTags, `${APEX_TX_TAG_PREFIX}${JSON.stringify(meta)}`];
+}
+
 /**
  * Cloud Synchronization and Multi-Device Authentication Engine
  */
@@ -96,16 +201,17 @@ export class CloudSyncService {
    * Map a Supabase `users` row to local UserProfile contract
    */
   private static mapUserRow(u: any): UserProfile {
+    const decoded = decodeUserAvatar(u.avatar);
     return {
       id: u.id,
       name: u.name,
       email: u.email,
       pinCode: u.pin_code,
       role: (u.role || 'user') as 'admin' | 'user',
-      avatar: u.avatar || 'User',
+      avatar: decoded.avatar || 'User',
       avatarColor: u.avatar_color || '#09090B',
       currency: u.currency || 'USD',
-      bio: u.bio || undefined,
+      bio: u.bio || decoded.bio || undefined,
       isLoggedIn: Boolean(u.is_logged_in),
       createdAt: u.created_at,
       updatedAt: u.updated_at,
@@ -113,13 +219,14 @@ export class CloudSyncService {
   }
 
   private static buildUserPayload(profile: UserProfile, includeExtended: boolean, overrideRole?: 'admin' | 'user') {
+    const cleanAvatar = decodeUserAvatar(profile.avatar).avatar;
     const base: Record<string, any> = {
       id: profile.id,
       name: profile.name,
       email: profile.email.toLowerCase().trim(),
       pin_code: profile.pinCode || '1234',
       role: overrideRole || profile.role || 'user',
-      avatar: profile.avatar || 'User',
+      avatar: includeExtended ? cleanAvatar : encodeUserAvatar(cleanAvatar, profile.bio),
       avatar_color: profile.avatarColor || '#09090B',
       currency: profile.currency || 'USD',
       is_logged_in: Boolean(profile.isLoggedIn),
@@ -133,6 +240,7 @@ export class CloudSyncService {
   }
 
   private static buildAccountPayload(account: Account, userId: string, includeExtended: boolean) {
+    const cleanIcon = decodeAccountIcon(account.icon).icon;
     const payload: Record<string, any> = {
       id: account.id,
       user_id: userId,
@@ -143,7 +251,7 @@ export class CloudSyncService {
       initial_balance: account.initialBalance || 0,
       is_archived: Boolean(account.isArchived),
       color: account.color || '#18181B',
-      icon: account.icon || 'Landmark',
+      icon: includeExtended ? cleanIcon : encodeAccountIcon(cleanIcon, account),
       created_at: account.createdAt || new Date().toISOString(),
       updated_at: account.updatedAt || new Date().toISOString(),
     };
@@ -175,7 +283,7 @@ export class CloudSyncService {
       merchant: tx.merchant,
       notes: tx.notes || null,
       status: tx.status || 'cleared',
-      tags: Array.isArray(tx.tags) ? tx.tags : [],
+      tags: encodeTransactionTags(tx.tags, tx, !includeExtended),
       payment_method: tx.paymentMethod || 'cash',
       is_split: Boolean(tx.splits && tx.splits.length > 0),
       created_at: tx.createdAt || new Date().toISOString(),
@@ -410,11 +518,12 @@ export class CloudSyncService {
       }
 
       const buildUpdate = (withExtended: boolean) => {
+        const cleanAvatar = decodeUserAvatar(profile.avatar).avatar;
         const upd: Record<string, any> = {
           name: profile.name,
           email: cleanEmail,
           pin_code: profile.pinCode || existingById.pin_code,
-          avatar: profile.avatar || 'User',
+          avatar: withExtended ? cleanAvatar : encodeUserAvatar(cleanAvatar, profile.bio),
           avatar_color: profile.avatarColor || '#09090B',
           currency: profile.currency || 'USD',
           role: profile.role || existingById.role || 'user',
@@ -447,7 +556,12 @@ export class CloudSyncService {
 
       return {
         success: true,
-        user: { ...profile, email: cleanEmail, role: (profile.role || existingById.role || 'user') as 'admin' | 'user' },
+        user: {
+          ...profile,
+          email: cleanEmail,
+          avatar: decodeUserAvatar(profile.avatar).avatar,
+          role: (profile.role || existingById.role || 'user') as 'admin' | 'user',
+        },
       };
     } catch (err: any) {
       console.error('Cloud saveOrUpdateUser exception:', err);
@@ -649,18 +763,31 @@ export class CloudSyncService {
 
           const cloudTs = toTimestampMs(cloudUser.updatedAt);
           const localTs = toTimestampMs(localProfile.updatedAt);
+          const needsBioBackfill = Boolean(localProfile.bio) && !cloudUser.bio;
+
           if (cloudTs > localTs) {
             const mergedProfile: UserProfile = {
               ...localProfile,
               ...cloudUser,
-              bio: cloudUser.bio ?? localProfile.bio,
+              bio: cloudUser.bio ?? undefined,
               isLoggedIn: localProfile.isLoggedIn,
             };
             await db.settings.put({ key: 'userProfile', value: mergedProfile });
             await db.users.put(mergedProfile);
             options?.onProfileUpdated?.(mergedProfile);
-          } else if (localTs > cloudTs) {
-            const profileToPush: UserProfile = { ...localProfile, role: cloudUser.role };
+          } else if (localTs > cloudTs || needsBioBackfill) {
+            const profileToPush: UserProfile = {
+              ...localProfile,
+              role: cloudUser.role,
+              updatedAt: needsBioBackfill
+                ? new Date(Math.max(Date.now(), cloudTs + 2000)).toISOString()
+                : localProfile.updatedAt,
+            };
+            if (needsBioBackfill) {
+              await db.settings.put({ key: 'userProfile', value: profileToPush });
+              await db.users.put(profileToPush);
+              options?.onProfileUpdated?.(profileToPush);
+            }
             await this.saveOrUpdateUser(profileToPush);
           } else if (cloudUser.role !== localProfile.role) {
             const roleSyncedProfile: UserProfile = { ...localProfile, role: cloudUser.role };
@@ -726,6 +853,22 @@ export class CloudSyncService {
           } else {
             const cloudTs = toTimestampMs(cloudRow.updated_at);
             const localTs = toTimestampMs(localAcc.updatedAt);
+            const unpacked = decodeAccountIcon(cloudRow.icon);
+            const resolvedInstitution =
+              cloudRow.institution_name !== undefined
+                ? (cloudRow.institution_name || unpacked.institutionName || undefined)
+                : unpacked.institutionName;
+            const resolvedMask =
+              cloudRow.account_number_mask !== undefined
+                ? (cloudRow.account_number_mask || unpacked.accountNumberMask || undefined)
+                : unpacked.accountNumberMask;
+            const resolvedNotes =
+              cloudRow.notes !== undefined
+                ? (cloudRow.notes || unpacked.notes || undefined)
+                : unpacked.notes;
+            const cloudHasExt = Boolean(resolvedInstitution || resolvedMask || resolvedNotes);
+            const localHasExt = Boolean(localAcc.institutionName || localAcc.accountNumberMask || localAcc.notes);
+            const needsExtBackfill = localHasExt && !cloudHasExt;
 
             if (cloudTs > localTs) {
               accountsToSaveLocally.push({
@@ -738,15 +881,18 @@ export class CloudSyncService {
                 currentBalance: Number(cloudRow.balance ?? 0),
                 isArchived: Boolean(cloudRow.is_archived),
                 color: cloudRow.color || '#18181B',
-                icon: cloudRow.icon || 'Landmark',
-                institutionName: cloudRow.institution_name !== undefined ? (cloudRow.institution_name || undefined) : localAcc.institutionName,
-                accountNumberMask: cloudRow.account_number_mask !== undefined ? (cloudRow.account_number_mask || undefined) : localAcc.accountNumberMask,
-                notes: cloudRow.notes !== undefined ? (cloudRow.notes || undefined) : localAcc.notes,
+                icon: unpacked.icon,
+                institutionName: resolvedInstitution,
+                accountNumberMask: resolvedMask,
+                notes: resolvedNotes,
                 createdAt: cloudRow.created_at,
                 updatedAt: cloudRow.updated_at,
               });
-            } else if (localTs > cloudTs + 1000 || !localAcc.userId) {
-              accountsToPush.push({ ...localAcc, userId });
+            } else if (localTs > cloudTs + 1000 || !localAcc.userId || needsExtBackfill) {
+              const pushUpdatedAt = needsExtBackfill
+                ? new Date(Math.max(Date.now(), cloudTs + 2000)).toISOString()
+                : localAcc.updatedAt;
+              accountsToPush.push({ ...localAcc, userId, updatedAt: pushUpdatedAt });
             }
           }
         }
@@ -755,6 +901,7 @@ export class CloudSyncService {
           const qKey = `accounts:${cloudRow.id}`;
           if (remainingQueueIds.has(qKey)) continue;
           if (!localAccMap.has(cloudRow.id)) {
+            const unpacked = decodeAccountIcon(cloudRow.icon);
             accountsToSaveLocally.push({
               id: cloudRow.id,
               userId,
@@ -765,10 +912,10 @@ export class CloudSyncService {
               currentBalance: Number(cloudRow.balance ?? 0),
               isArchived: Boolean(cloudRow.is_archived),
               color: cloudRow.color || '#18181B',
-              icon: cloudRow.icon || 'Landmark',
-              institutionName: cloudRow.institution_name || undefined,
-              accountNumberMask: cloudRow.account_number_mask || undefined,
-              notes: cloudRow.notes || undefined,
+              icon: unpacked.icon,
+              institutionName: cloudRow.institution_name || unpacked.institutionName || undefined,
+              accountNumberMask: cloudRow.account_number_mask || unpacked.accountNumberMask || undefined,
+              notes: cloudRow.notes || unpacked.notes || undefined,
               createdAt: cloudRow.created_at,
               updatedAt: cloudRow.updated_at,
             });
@@ -895,6 +1042,22 @@ export class CloudSyncService {
           } else {
             const cloudTs = toTimestampMs(cloudRow.updated_at);
             const localTs = toTimestampMs(localTx.updatedAt);
+            const unpackedTags = decodeTransactionTags(cloudRow.tags);
+            const resolvedTime =
+              cloudRow.time !== undefined
+                ? (cloudRow.time || unpackedTags.time || undefined)
+                : unpackedTags.time;
+            const resolvedSplits =
+              cloudRow.splits !== undefined
+                ? (Array.isArray(cloudRow.splits) ? cloudRow.splits : unpackedTags.splits)
+                : (cloudRow.is_split === false ? undefined : unpackedTags.splits);
+            const resolvedAttachName =
+              cloudRow.attachment_name !== undefined
+                ? (cloudRow.attachment_name || unpackedTags.attachmentName || undefined)
+                : unpackedTags.attachmentName;
+            const cloudHasExt = Boolean(resolvedTime || resolvedSplits?.length || resolvedAttachName);
+            const localHasExt = Boolean(localTx.time || localTx.splits?.length || localTx.attachmentName);
+            const needsTxExtBackfill = localHasExt && !cloudHasExt;
 
             if (cloudTs > localTs) {
               txsToSaveLocally.push({
@@ -903,7 +1066,7 @@ export class CloudSyncService {
                 type: cloudRow.type,
                 amount: Number(cloudRow.amount),
                 date: cloudRow.date,
-                time: cloudRow.time !== undefined ? (cloudRow.time || undefined) : localTx.time,
+                time: resolvedTime,
                 accountId: cloudRow.account_id,
                 toAccountId: cloudRow.to_account_id || undefined,
                 categoryId: cloudRow.category_id || undefined,
@@ -911,22 +1074,21 @@ export class CloudSyncService {
                 merchant: cloudRow.merchant,
                 notes: cloudRow.notes || undefined,
                 status: (cloudRow.status || 'cleared') as any,
-                tags: Array.isArray(cloudRow.tags) ? cloudRow.tags : [],
+                tags: unpackedTags.tags,
                 paymentMethod: (cloudRow.payment_method || 'cash') as any,
-                splits: cloudRow.splits !== undefined
-                  ? (Array.isArray(cloudRow.splits) ? cloudRow.splits : undefined)
-                  : (cloudRow.is_split === false ? undefined : localTx.splits),
+                splits: resolvedSplits,
                 attachmentData: cloudRow.attachment_data !== undefined
                   ? (cloudRow.attachment_data || undefined)
                   : localTx.attachmentData,
-                attachmentName: cloudRow.attachment_name !== undefined
-                  ? (cloudRow.attachment_name || undefined)
-                  : localTx.attachmentName,
+                attachmentName: resolvedAttachName,
                 createdAt: cloudRow.created_at,
                 updatedAt: cloudRow.updated_at,
               });
-            } else if (localTs > cloudTs + 1000 || !localTx.userId) {
-              txsToPush.push({ ...localTx, userId });
+            } else if (localTs > cloudTs + 1000 || !localTx.userId || needsTxExtBackfill) {
+              const pushUpdatedAt = needsTxExtBackfill
+                ? new Date(Math.max(Date.now(), cloudTs + 2000)).toISOString()
+                : localTx.updatedAt;
+              txsToPush.push({ ...localTx, userId, updatedAt: pushUpdatedAt });
             }
           }
         }
@@ -935,13 +1097,14 @@ export class CloudSyncService {
           const qKey = `transactions:${cloudRow.id}`;
           if (remainingQueueIds.has(qKey)) continue;
           if (!localTxMap.has(cloudRow.id)) {
+            const unpackedTags = decodeTransactionTags(cloudRow.tags);
             txsToSaveLocally.push({
               id: cloudRow.id,
               userId,
               type: cloudRow.type,
               amount: Number(cloudRow.amount),
               date: cloudRow.date,
-              time: cloudRow.time || undefined,
+              time: cloudRow.time || unpackedTags.time || undefined,
               accountId: cloudRow.account_id,
               toAccountId: cloudRow.to_account_id || undefined,
               categoryId: cloudRow.category_id || undefined,
@@ -949,11 +1112,11 @@ export class CloudSyncService {
               merchant: cloudRow.merchant,
               notes: cloudRow.notes || undefined,
               status: (cloudRow.status || 'cleared') as any,
-              tags: Array.isArray(cloudRow.tags) ? cloudRow.tags : [],
+              tags: unpackedTags.tags,
               paymentMethod: (cloudRow.payment_method || 'cash') as any,
-              splits: Array.isArray(cloudRow.splits) ? cloudRow.splits : undefined,
+              splits: Array.isArray(cloudRow.splits) ? cloudRow.splits : unpackedTags.splits,
               attachmentData: cloudRow.attachment_data || undefined,
-              attachmentName: cloudRow.attachment_name || undefined,
+              attachmentName: cloudRow.attachment_name || unpackedTags.attachmentName || undefined,
               createdAt: cloudRow.created_at,
               updatedAt: cloudRow.updated_at,
             });
