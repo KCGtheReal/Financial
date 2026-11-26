@@ -12,7 +12,8 @@ import {
   Command,
   User,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  LogOut
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
@@ -21,6 +22,7 @@ import { LedgerRepository } from '../../db/repository';
 import { CloudSyncService } from '../../db/supabase';
 import { t } from '../../i18n';
 import { AppLogo } from '../common/AppLogo';
+import { ConfirmModal } from '../common/ConfirmModal';
 
 export const Header: React.FC = () => {
   const {
@@ -40,12 +42,21 @@ export const Header: React.FC = () => {
     setAdminPanelOpen,
     isCloudSyncing,
     setCloudSyncStatus,
+    resetSessionState,
   } = useAppStore();
 
   const { incrementHistoryRevision } = useLedgerStore();
   const [, setTick] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const executeSignOut = async () => {
+    const loggedOut = await LedgerRepository.logoutUser();
+    useLedgerStore.getState().clearSelection();
+    historyManager.clear();
+    resetSessionState(loggedOut);
+  };
 
   // Subscribe to history changes for undo/redo availability
   useEffect(() => {
@@ -300,7 +311,7 @@ export const Header: React.FC = () => {
 
                 <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
 
-                {/* Lock Terminal */}
+                {/* Lock App */}
                 <button
                   onClick={() => {
                     setIsAppLocked(true);
@@ -311,11 +322,36 @@ export const Header: React.FC = () => {
                   <Lock size={15} className="text-zinc-400" />
                   <span>{t('lockNow', language)}</span>
                 </button>
+
+                {/* Sign Out */}
+                {userProfile?.isLoggedIn && (
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setIsSignOutConfirmOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                  >
+                    <LogOut size={15} />
+                    <span className="font-semibold">{t('signOut', language)}</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={isSignOutConfirmOpen}
+        onClose={() => setIsSignOutConfirmOpen(false)}
+        onConfirm={executeSignOut}
+        title={t('signOut', language)}
+        message={t('signOutConfirm', language)}
+        confirmLabel={t('signOut', language)}
+        tone="default"
+        icon="logout"
+      />
     </header>
   );
 };

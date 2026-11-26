@@ -6,6 +6,7 @@ import App from '../src/App';
 import { PullToRefresh } from '../src/components/common/PullToRefresh';
 import { AuthModal } from '../src/components/auth/AuthModal';
 import { AccountModal } from '../src/components/ledger/AccountModal';
+import { Header } from '../src/components/layout/Header';
 import { db, DEFAULT_CATEGORIES, recalculateAllAccountBalances } from '../src/db/db';
 import { LedgerRepository } from '../src/db/repository';
 import {
@@ -839,6 +840,38 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
     await waitFor(async () => {
       expect(await db.accounts.get('acc-popup-del')).toBeUndefined();
       expect(useAppStore.getState().isAccountModalOpen).toBe(false);
+    });
+  });
+
+  it('logs out via Header More Options menu using ConfirmModal popup', async () => {
+    const loggedInUser: UserProfile = {
+      id: 'usr-header-logout',
+      name: 'Kongchhun Rathana',
+      email: 'kongchhunyt@gmail.com',
+      pinCode: '2123',
+      currency: 'USD',
+      role: 'admin',
+      isLoggedIn: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    await LedgerRepository.saveUserProfile(loggedInUser);
+    useAppStore.getState().setUserProfile(loggedInUser);
+    useAppStore.getState().setSelectedAccountId('acc-selected');
+
+    render(<Header />);
+
+    fireEvent.click(screen.getByLabelText('More Options'));
+    const signOutMenuBtn = await screen.findByText(t('signOut', 'en'));
+    fireEvent.click(signOutMenuBtn);
+
+    const popup = await screen.findByTestId('confirm-modal');
+    expect(popup).toBeDefined();
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().userProfile?.isLoggedIn).toBe(false);
+      expect(useAppStore.getState().selectedAccountId).toBeNull();
     });
   });
 });
