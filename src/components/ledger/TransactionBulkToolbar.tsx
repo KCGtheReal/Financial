@@ -13,6 +13,7 @@ import {
   Plus
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { Icon } from '../common/Icon';
 import { t } from '../../i18n';
 import { useAppStore } from '../../store/useAppStore';
@@ -28,6 +29,7 @@ export const TransactionBulkToolbar: React.FC = () => {
 
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const categories = useLiveQuery(() => db.categories.toArray()) || [];
   const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
@@ -54,16 +56,18 @@ export const TransactionBulkToolbar: React.FC = () => {
     ? (language === 'km' ? '១ ប្រតិបត្តិការ' : '1 transaction')
     : (language === 'km' ? `${count} ប្រតិបត្តិការ` : `${count} transactions`);
 
-  const handleBulkDelete = async () => {
-    const confirmMsg = language === 'km'
-      ? `តើអ្នកពិតជាចង់លុប ${countLabel} មែនទេ? អ្នកអាចត្រឡប់វិញបាន។`
-      : `Delete ${countLabel}? You can undo this action.`;
+  const confirmDeleteMsg = language === 'km'
+    ? `តើអ្នកពិតជាចង់លុប ${countLabel} មែនទេ? អ្នកអាចត្រឡប់វិញបាន។`
+    : `Delete ${countLabel}? You can undo this action.`;
 
-    if (confirm(confirmMsg)) {
-      await LedgerRepository.bulkDelete(selectedTxIds);
-      incrementHistoryRevision();
-      clearSelection();
-    }
+  const handleBulkDelete = () => {
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const executeBulkDelete = async () => {
+    await LedgerRepository.bulkDelete(selectedTxIds);
+    incrementHistoryRevision();
+    clearSelection();
   };
 
   const handleBulkRecategorize = async (e: React.FormEvent) => {
@@ -408,6 +412,16 @@ export const TransactionBulkToolbar: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={executeBulkDelete}
+        title={t('delete', language)}
+        message={confirmDeleteMsg}
+        confirmLabel={t('delete', language)}
+        tone="danger"
+      />
     </>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '../common/Modal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { useAppStore } from '../../store/useAppStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
 import { LedgerRepository } from '../../db/repository';
@@ -71,6 +72,7 @@ export const AuthModal: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const prevInitKeyRef = useRef<string | null>(null);
 
   // Sync form only when modal opens or authMode/target user changes (never clobber mid-typing)
@@ -236,14 +238,16 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handleSignOut = async () => {
-    if (confirm(t('signOutConfirm', language))) {
-      const loggedOut = await LedgerRepository.logoutUser();
-      useLedgerStore.getState().clearSelection();
-      historyManager.clear();
-      useAppStore.getState().resetSessionState(loggedOut);
-      setAuthMode('signin');
-    }
+  const handleSignOut = () => {
+    setIsSignOutConfirmOpen(true);
+  };
+
+  const executeSignOut = async () => {
+    const loggedOut = await LedgerRepository.logoutUser();
+    useLedgerStore.getState().clearSelection();
+    historyManager.clear();
+    useAppStore.getState().resetSessionState(loggedOut);
+    setAuthMode('signin');
   };
 
   const SelectedIconComponent = AVATAR_ICONS.find((a) => a.id === avatar)?.icon || User;
@@ -263,6 +267,7 @@ export const AuthModal: React.FC = () => {
       : 'Manage identity, credentials, and ledger preferences';
 
   return (
+    <>
     <Modal
       isOpen={isAuthModalOpen}
       onClose={handleClose}
@@ -631,5 +636,17 @@ export const AuthModal: React.FC = () => {
         )}
       </div>
     </Modal>
+
+    <ConfirmModal
+      isOpen={isSignOutConfirmOpen && isAuthModalOpen}
+      onClose={() => setIsSignOutConfirmOpen(false)}
+      onConfirm={executeSignOut}
+      title={t('signOut', language)}
+      message={t('signOutConfirm', language)}
+      confirmLabel={t('signOut', language)}
+      tone="default"
+      icon="logout"
+    />
+    </>
   );
 };

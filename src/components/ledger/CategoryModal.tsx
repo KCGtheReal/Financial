@@ -4,6 +4,7 @@ import { db } from '../../db/db';
 import { LedgerRepository } from '../../db/repository';
 import { useAppStore } from '../../store/useAppStore';
 import { Modal } from '../common/Modal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { Icon } from '../common/Icon';
 import { Category } from '@contracts/api';
 import { Plus, Trash2, FolderPlus } from 'lucide-react';
@@ -62,17 +63,24 @@ export const CategoryModal: React.FC = () => {
     }
   };
 
-  const handleDeleteCategory = async (cat: Category) => {
-    if (confirm(`Delete category "${cat.name}" and any subcategories?`)) {
-      await LedgerRepository.deleteCategory(cat.id);
-    }
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+
+  const handleDeleteCategory = (cat: Category) => {
+    setDeletingCategory(cat);
+  };
+
+  const executeDeleteCategory = async () => {
+    if (!deletingCategory) return;
+    await LedgerRepository.deleteCategory(deletingCategory.id);
   };
 
   const handleClose = useCallback(() => {
+    setDeletingCategory(null);
     setCategoryModalOpen(false);
   }, [setCategoryModalOpen]);
 
   return (
+    <>
     <Modal
       isOpen={isCategoryModalOpen}
       onClose={handleClose}
@@ -242,5 +250,22 @@ export const CategoryModal: React.FC = () => {
         </div>
       </div>
     </Modal>
+
+    <ConfirmModal
+      isOpen={Boolean(deletingCategory) && isCategoryModalOpen}
+      onClose={() => setDeletingCategory(null)}
+      onConfirm={executeDeleteCategory}
+      title={language === 'km' ? 'លុបចំណាត់ថ្នាក់' : 'Delete Category'}
+      message={
+        deletingCategory
+          ? language === 'km'
+            ? `តើអ្នកប្រាកដជាចង់លុប "${deletingCategory.name}" និងចំណាត់ថ្នាក់រងទាំងអស់មែនទេ?`
+            : `Delete category "${deletingCategory.name}" and any subcategories?`
+          : ''
+      }
+      confirmLabel={t('delete', language)}
+      tone="danger"
+    />
+    </>
   );
 };

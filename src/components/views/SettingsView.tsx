@@ -22,6 +22,7 @@ import { LedgerRepository } from '../../db/repository';
 import { historyManager } from '../../utils/history';
 import { t } from '../../i18n';
 import { Modal } from '../common/Modal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { AppLogo } from '../common/AppLogo';
 
 export const SettingsView: React.FC = () => {
@@ -48,6 +49,7 @@ export const SettingsView: React.FC = () => {
   const [pinSuccess, setPinSuccess] = useState(false);
   const [pinError, setPinError] = useState('');
   const [showCurrentPin, setShowCurrentPin] = useState(false);
+  const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
 
   const handleUpdatePin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,13 +77,15 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleSignOut = async () => {
-    if (confirm(t('signOutConfirm', language))) {
-      const loggedOut = await LedgerRepository.logoutUser();
-      useLedgerStore.getState().clearSelection();
-      historyManager.clear();
-      resetSessionState(loggedOut);
-    }
+  const handleSignOut = () => {
+    setIsSignOutConfirmOpen(true);
+  };
+
+  const executeSignOut = async () => {
+    const loggedOut = await LedgerRepository.logoutUser();
+    useLedgerStore.getState().clearSelection();
+    historyManager.clear();
+    resetSessionState(loggedOut);
   };
 
   return (
@@ -428,6 +432,17 @@ export const SettingsView: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={isSignOutConfirmOpen}
+        onClose={() => setIsSignOutConfirmOpen(false)}
+        onConfirm={executeSignOut}
+        title={t('signOut', language)}
+        message={t('signOutConfirm', language)}
+        confirmLabel={t('signOut', language)}
+        tone="default"
+        icon="logout"
+      />
     </div>
   );
 };

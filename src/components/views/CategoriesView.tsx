@@ -4,6 +4,7 @@ import { db } from '../../db/db';
 import { useAppStore } from '../../store/useAppStore';
 import { LedgerRepository } from '../../db/repository';
 import { Icon } from '../common/Icon';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { Plus, Trash2, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { t } from '../../i18n';
 import { Category } from '@contracts/api';
@@ -11,6 +12,7 @@ import { Category } from '@contracts/api';
 export const CategoriesView: React.FC = () => {
   const { setCategoryModalOpen, language } = useAppStore();
   const [activeType, setActiveType] = useState<'expense' | 'income'>('expense');
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
   const categories = useLiveQuery(() => db.categories.orderBy('order').toArray()) || [];
 
@@ -18,10 +20,13 @@ export const CategoriesView: React.FC = () => {
     (c) => !c.parentId && c.type === activeType
   );
 
-  const handleDelete = async (cat: Category) => {
-    if (confirm(`Delete category "${cat.name}" and all subcategories?`)) {
-      await LedgerRepository.deleteCategory(cat.id);
-    }
+  const handleDelete = (cat: Category) => {
+    setDeletingCategory(cat);
+  };
+
+  const executeDeleteCategory = async () => {
+    if (!deletingCategory) return;
+    await LedgerRepository.deleteCategory(deletingCategory.id);
   };
 
   return (
@@ -123,6 +128,22 @@ export const CategoriesView: React.FC = () => {
           );
         })}
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(deletingCategory)}
+        onClose={() => setDeletingCategory(null)}
+        onConfirm={executeDeleteCategory}
+        title={language === 'km' ? 'លុបចំណាត់ថ្នាក់' : 'Delete Category'}
+        message={
+          deletingCategory
+            ? language === 'km'
+              ? `តើអ្នកប្រាកដជាចង់លុប "${deletingCategory.name}" និងចំណាត់ថ្នាក់រងទាំងអស់មែនទេ?`
+              : `Delete category "${deletingCategory.name}" and all subcategories?`
+            : ''
+        }
+        confirmLabel={t('delete', language)}
+        tone="danger"
+      />
     </div>
   );
 };

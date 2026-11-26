@@ -5,6 +5,7 @@ import 'fake-indexeddb/auto';
 import App from '../src/App';
 import { PullToRefresh } from '../src/components/common/PullToRefresh';
 import { AuthModal } from '../src/components/auth/AuthModal';
+import { AccountModal } from '../src/components/ledger/AccountModal';
 import { db, DEFAULT_CATEGORIES, recalculateAllAccountBalances } from '../src/db/db';
 import { LedgerRepository } from '../src/db/repository';
 import {
@@ -534,9 +535,16 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
       expect((await LedgerRepository.getUserProfile())?.pinCode).toBe('9876');
     });
 
-    // Sign out resets selection & user session state
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    // Sign out opens custom B&W ConfirmModal popup (not window.confirm) & resets session state on confirm
+    const nativeConfirmSpy = vi.spyOn(window, 'confirm');
     fireEvent.click(screen.getByText(t('signOut', 'en')));
+    expect(nativeConfirmSpy).not.toHaveBeenCalled();
+
+    const confirmPopup = await screen.findByTestId('confirm-modal');
+    expect(confirmPopup).toBeDefined();
+    expect(screen.getByText(t('signOutConfirm', 'en'))).toBeDefined();
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+
     await waitFor(() => {
       expect(useAppStore.getState().userProfile?.isLoggedIn).toBe(false);
       expect(useAppStore.getState().selectedAccountId).toBeNull();
@@ -793,5 +801,44 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
       attachmentName: 'receipt.jpg',
     });
     expect(encodeTransactionTags(packedTags, {}, false)).toEqual(['groceries', 'urgent']);
+  });
+
+  it('uses custom ConfirmModal popup instead of browser alert/confirm when deleting an account', async () => {
+    const nativeConfirmSpy = vi.spyOn(window, 'confirm');
+    const card: Account = {
+      id: 'acc-popup-del',
+      name: 'RATHANA KONGCHHUN',
+      type: 'cash',
+      currency: 'USD',
+      initialBalance: 1000,
+      currentBalance: 1000,
+      color: '#18181B',
+      icon: 'Landmark',
+      institutionName: 'Wallet',
+      isArchived: false,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    await db.accounts.put(card);
+
+    useAppStore.getState().setEditingAccount(card);
+    useAppStore.getState().setAccountModalOpen(true);
+
+    render(<AccountModal />);
+
+    fireEvent.click(screen.getByText(t('delete', 'en')));
+    expect(nativeConfirmSpy).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('confirm-modal')).toBeDefined();
+      expect(screen.getByText(/Delete account "RATHANA KONGCHHUN"/i)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+
+    await waitFor(async () => {
+      expect(await db.accounts.get('acc-popup-del')).toBeUndefined();
+      expect(useAppStore.getState().isAccountModalOpen).toBe(false);
+    });
   });
 });

@@ -7,6 +7,7 @@ import { formatMoney } from '../../utils/money';
 import { formatDate } from '../../utils/date';
 import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { 
   ArrowRightLeft, 
   Paperclip, 
@@ -34,6 +35,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const isSelected = selectedTxIds.includes(tx.id);
 
@@ -44,12 +46,14 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
 
   const currency = sourceAccount?.currency || 'USD';
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Delete transaction "${tx.merchant}"? You can undo this with Ctrl+Z.`)) {
-      await LedgerRepository.deleteTransaction(tx.id);
-      incrementHistoryRevision();
-    }
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    await LedgerRepository.deleteTransaction(tx.id);
+    incrementHistoryRevision();
   };
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -239,6 +243,22 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
             )}
           </div>
         </Modal>
+      )}
+
+      {isDeleteConfirmOpen && (
+        <ConfirmModal
+          isOpen={isDeleteConfirmOpen}
+          onClose={() => setIsDeleteConfirmOpen(false)}
+          onConfirm={executeDelete}
+          title={language === 'km' ? 'លុបប្រតិបត្តិការ' : 'Delete Transaction'}
+          message={
+            language === 'km'
+              ? `តើអ្នកពិតជាចង់លុប "${tx.merchant}" មែនទេ? អ្នកអាចត្រឡប់វិញបាន។`
+              : `Delete transaction "${tx.merchant}"? You can undo this with Ctrl+Z.`
+          }
+          confirmLabel={t('delete', language)}
+          tone="danger"
+        />
       )}
     </div>
   );

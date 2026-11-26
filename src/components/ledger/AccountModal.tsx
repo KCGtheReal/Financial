@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { LedgerRepository } from '../../db/repository';
 import { Modal } from '../common/Modal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { Account, AccountType } from '@contracts/api';
 import { CURRENCIES, getCurrency, toMinorUnits, toMajorUnits } from '../../utils/money';
 import { generateId } from '../../utils/id';
@@ -122,22 +123,28 @@ export const AccountModal: React.FC = () => {
     }
   };
 
-  const handleDelete = async () => {
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  const handleDelete = () => {
     if (!editingAccount || isSubmitting) return;
-    if (confirm(`Delete account "${editingAccount.name}" and all its linked transactions?`)) {
-      setIsSubmitting(true);
-      try {
-        await LedgerRepository.deleteAccount(editingAccount.id);
-        handleClose();
-      } catch (err: any) {
-        setErrorMessage(err.message || 'Failed to delete account');
-      } finally {
-        setIsSubmitting(false);
-      }
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const executeDeleteAccount = async () => {
+    if (!editingAccount || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await LedgerRepository.deleteAccount(editingAccount.id);
+      handleClose();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to delete account');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
+    <>
     <Modal
       isOpen={isAccountModalOpen}
       onClose={handleClose}
@@ -320,5 +327,23 @@ export const AccountModal: React.FC = () => {
         </div>
       </form>
     </Modal>
+
+    <ConfirmModal
+      isOpen={isDeleteConfirmOpen && isAccountModalOpen}
+      onClose={() => setIsDeleteConfirmOpen(false)}
+      onConfirm={executeDeleteAccount}
+      title={language === 'km' ? 'លុបគណនី' : 'Delete Account'}
+      message={
+        editingAccount
+          ? language === 'km'
+            ? `តើអ្នកប្រាកដជាចង់លុប "${editingAccount.name}" និងប្រតិបត្តិការដែលភ្ជាប់ទាំងអស់មែនទេ?`
+            : `Delete account "${editingAccount.name}" and all its linked transactions?`
+          : ''
+      }
+      confirmLabel={t('delete', language)}
+      tone="danger"
+      isLoading={isSubmitting}
+    />
+    </>
   );
 };
