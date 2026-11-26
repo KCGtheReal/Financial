@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-libra
 import 'fake-indexeddb/auto';
 import App from '../src/App';
 import { PullToRefresh } from '../src/components/common/PullToRefresh';
+import { AuthModal } from '../src/components/auth/AuthModal';
 import { db, DEFAULT_CATEGORIES, recalculateAllAccountBalances } from '../src/db/db';
 import { LedgerRepository } from '../src/db/repository';
 import { CloudSyncService } from '../src/db/supabase';
@@ -34,6 +35,7 @@ async function resetDbAndStores() {
   useAppStore.getState().setEditingAccount(null);
   useAppStore.getState().setEditingTransaction(null);
   useAppStore.getState().setUserProfile(null);
+  useAppStore.getState().setAuthModalOpen(false);
   useAppStore.getState().setLanguage('en');
   useAppStore.getState().setTheme('light');
   useAppStore.getState().setIsAppLocked(false);
@@ -691,5 +693,57 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
     const snap = await db.settings.get('cloudSyncedState_usr-outbox');
     expect(snap?.value?.accounts).toEqual(expect.arrayContaining(['acc-1', 'acc-2', 'acc-3', 'acc-4']));
     expect(snap?.value?.accounts).toHaveLength(4);
+  });
+
+  it('allows saving Bio in Profile even when a stale duplicate local email row exists, while blocking new duplicate signups', async () => {
+    const activeUser: UserProfile = {
+      id: 'usr-1795512113015',
+      name: 'Kongchhun Rathana',
+      email: 'kongchhunyt@gmail.com',
+      pinCode: '2123',
+      currency: 'USD',
+      role: 'admin',
+      isLoggedIn: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    // Simulate stale local pre-cloud duplicate row sharing same email in db.users
+    await db.users.put({
+      ...activeUser,
+      id: 'usr-stale-local-old',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    await db.users.put(activeUser);
+    await db.settings.put({ key: 'userProfile', value: activeUser });
+
+    useAppStore.getState().setUserProfile(activeUser);
+    useAppStore.getState().setAuthMode('profile');
+    useAppStore.getState().setAuthModalOpen(true);
+
+    render(<AuthModal />);
+
+    const bioInput = await screen.findByPlaceholderText('e.g. Personal wealth & business ledger');
+    fireEvent.change(bioInput, { target: { value: 'Save is the goal' } });
+    fireEvent.click(screen.getByText(t('save', 'en')));
+
+    await waitFor(async () => {
+      expect(useAppStore.getState().userProfile?.bio).toBe('Save is the goal');
+      expect((await LedgerRepository.getUserProfile())?.bio).toBe('Save is the goal');
+      expect(await db.users.get('usr-stale-local-old')).toBeUndefined();
+    });
+
+    // Separate new registration reusing the email must still be rejected
+    await expect(
+      LedgerRepository.saveUserProfile({
+        id: 'usr-new-attacker',
+        name: 'Another User',
+        email: 'kongchhunyt@gmail.com',
+        pinCode: '9999',
+        currency: 'USD',
+        isLoggedIn: true,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      })
+    ).rejects.toThrow(/already exists/i);
   });
 });

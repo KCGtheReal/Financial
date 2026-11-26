@@ -578,16 +578,33 @@ export class LedgerRepository {
     return null;
   }
 
-  static async saveUserProfile(profile: UserProfile): Promise<UserProfile> {
+  static async saveUserProfile(profile: UserProfile, options?: { isEdit?: boolean }): Promise<UserProfile> {
     const cleanEmail = profile.email.toLowerCase().trim();
-    const [totalUsers, existingById, existingByEmail] = await Promise.all([
+    const [totalUsers, existingById, matchingByEmail, currentSession] = await Promise.all([
       db.users.count(),
       db.users.get(profile.id),
-      db.users.where('email').equalsIgnoreCase(cleanEmail).first(),
+      db.users.where('email').equalsIgnoreCase(cleanEmail).toArray(),
+      this.getUserProfile(),
     ]);
 
-    if (existingByEmail && existingByEmail.id !== profile.id) {
-      throw new Error('An account with this email already exists. Please sign in instead.');
+    const conflicts = matchingByEmail.filter((u) => u.id !== profile.id);
+    const isEditingSameSession = Boolean(
+      options?.isEdit ||
+      (existingById && currentSession?.id === profile.id) ||
+      (currentSession?.isLoggedIn && currentSession.id === profile.id)
+    );
+
+    if (conflicts.length > 0) {
+      const sameEmailAsCurrent =
+        isEditingSameSession &&
+        currentSession?.email?.toLowerCase().trim() === cleanEmail;
+
+      if (sameEmailAsCurrent) {
+        // Purge stale pre-cloud duplicate local entries sharing this user's own verified email
+        await db.users.bulkDelete(conflicts.map((c) => c.id));
+      } else {
+        throw new Error('An account with this email already exists. Please sign in instead.');
+      }
     }
 
     let finalProfile: UserProfile = {
@@ -609,6 +626,16 @@ export class LedgerRepository {
       await CloudSyncService.syncWithCloud(finalProfile.id);
     }
 
+    // Ensure no stale local duplicate shares this email under a different ID
+    const leftoverDupes = await db.users
+      .where('email')
+      .equalsIgnoreCase(finalProfile.email)
+      .filter((u) => u.id !== finalProfile.id)
+      .primaryKeys();
+    if (leftoverDupes.length > 0) {
+      await db.users.bulkDelete(leftoverDupes as string[]);
+    }
+
     await db.settings.put({ key: 'userProfile', value: finalProfile });
     await db.users.put(finalProfile);
     return finalProfile;
@@ -621,6 +648,14 @@ export class LedgerRepository {
     if (CloudSyncService.isConfigured()) {
       const cloudRes = await CloudSyncService.loginUser(cleanEmail, pinCode);
       if (cloudRes.success && cloudRes.user) {
+        const staleLocalIds = await db.users
+          .where('email')
+          .equalsIgnoreCase(cleanEmail)
+          .filter((u) => u.id !== cloudRes.user!.id)
+          .primaryKeys();
+        if (staleLocalIds.length > 0) {
+          await db.users.bulkDelete(staleLocalIds as string[]);
+        }
         await db.settings.put({ key: 'userProfile', value: cloudRes.user });
         await db.users.put(cloudRes.user);
         return { success: true, user: cloudRes.user };

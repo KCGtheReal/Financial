@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '../common/Modal';
 import { useAppStore } from '../../store/useAppStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
@@ -71,9 +71,21 @@ export const AuthModal: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const prevInitKeyRef = useRef<string | null>(null);
 
-  // Sync form when modal opens or profile changes
+  // Sync form only when modal opens or authMode/target user changes (never clobber mid-typing)
   useEffect(() => {
+    if (!isAuthModalOpen) {
+      prevInitKeyRef.current = null;
+      return;
+    }
+
+    const initKey = `${authMode}:${userProfile?.id || 'guest'}`;
+    if (prevInitKeyRef.current === initKey) {
+      return;
+    }
+    prevInitKeyRef.current = initKey;
+
     if (userProfile && authMode === 'profile') {
       setName(userProfile.name);
       setEmail(userProfile.email);
@@ -210,7 +222,7 @@ export const AuthModal: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const saved = await LedgerRepository.saveUserProfile(updatedProfile);
+      const saved = await LedgerRepository.saveUserProfile(updatedProfile, { isEdit: true });
       setUserProfile(saved);
       if (pin.length === 4) setPinCode(pin);
       setSuccessMessage('Profile updated successfully!');
