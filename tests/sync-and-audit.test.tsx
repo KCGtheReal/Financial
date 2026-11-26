@@ -633,4 +633,63 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
       expect(screen.getAllByText('Phone 1 New Card').length).toBeGreaterThan(0);
     });
   });
+
+  it('persists syncQueue outbox entries BEFORE cloud calls and serializes concurrent snapshot marks', async () => {
+    const user: UserProfile = {
+      id: 'usr-outbox',
+      name: 'Outbox Tester',
+      email: 'outbox@apex.finance',
+      pinCode: '1234',
+      currency: 'USD',
+      isLoggedIn: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    await LedgerRepository.saveUserProfile(user);
+
+    vi.spyOn(CloudSyncService, 'isConfigured').mockReturnValue(true);
+
+    // Assert queue ALREADY exists on disk while network request is in flight!
+    let sawQueuedAccDuringNetwork = false;
+    vi.spyOn(CloudSyncService, 'syncAccount').mockImplementation(async (acc) => {
+      const queued = await db.syncQueue.get(`accounts:${acc.id}`);
+      sawQueuedAccDuringNetwork = queued?.operation === 'upsert';
+      return { success: true };
+    });
+
+    await LedgerRepository.createAccount({
+      id: 'acc-outbox-1',
+      name: 'Outbox Card',
+      type: 'bank',
+      currency: 'USD',
+      initialBalance: 1000,
+      currentBalance: 1000,
+      color: '#000000',
+      icon: 'Landmark',
+      isArchived: false,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+
+    expect(sawQueuedAccDuringNetwork).toBe(true);
+    // Cleared cleanly once cloud returned { success: true }
+    expect(await db.syncQueue.get('accounts:acc-outbox-1')).toBeUndefined();
+
+    // If cloud delete throws/aborts mid-flight, delete stays safely queued in outbox!
+    vi.spyOn(CloudSyncService, 'deleteCloudAccount').mockRejectedValueOnce(new Error('App backgrounded mid-flight'));
+    await expect(LedgerRepository.deleteAccount('acc-outbox-1')).rejects.toThrow(/backgrounded/i);
+    const queuedDel = await db.syncQueue.get('accounts:acc-outbox-1');
+    expect(queuedDel?.operation).toBe('delete');
+
+    // Concurrent markEntitySynced calls must never clobber each other
+    await Promise.all([
+      CloudSyncService.markEntitySynced('accounts', 'acc-1', 'usr-outbox'),
+      CloudSyncService.markEntitySynced('accounts', 'acc-2', 'usr-outbox'),
+      CloudSyncService.markEntitySynced('accounts', 'acc-3', 'usr-outbox'),
+      CloudSyncService.markEntitySynced('accounts', 'acc-4', 'usr-outbox'),
+    ]);
+    const snap = await db.settings.get('cloudSyncedState_usr-outbox');
+    expect(snap?.value?.accounts).toEqual(expect.arrayContaining(['acc-1', 'acc-2', 'acc-3', 'acc-4']));
+    expect(snap?.value?.accounts).toHaveLength(4);
+  });
 });

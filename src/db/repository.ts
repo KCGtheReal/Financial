@@ -27,9 +27,11 @@ export class LedgerRepository {
       await db.accounts.put(accWithOwner);
     }
 
+    // Transactional Outbox: enqueue BEFORE network call so app exit/backgrounding never loses pending writes
+    await CloudSyncService.enqueueOperation('accounts', accountId, 'upsert', userId);
     const res = await CloudSyncService.syncAccount(accWithOwner, userId);
-    if (!res.success) {
-      await CloudSyncService.enqueueOperation('accounts', accountId, 'upsert', userId);
+    if (res.success) {
+      await CloudSyncService.clearQueuedOperation('accounts', accountId);
     }
   }
 
@@ -43,22 +45,27 @@ export class LedgerRepository {
     const userId = explicitUserId || tx.userId || (await this.getActiveUserId());
     if (!userId) return;
 
+    await CloudSyncService.enqueueOperation('transactions', tx.id, 'upsert', userId);
+
     // Guarantee parent account exists in cloud before syncing transaction (FK constraint)
     await this.syncAffectedAccounts([tx.accountId, tx.toAccountId], userId);
 
     const acc = await db.accounts.get(tx.accountId);
     const res = await CloudSyncService.syncTransaction({ ...tx, userId }, userId, acc?.currency);
-    if (!res.success) {
-      await CloudSyncService.enqueueOperation('transactions', tx.id, 'upsert', userId);
+    if (res.success) {
+      await CloudSyncService.clearQueuedOperation('transactions', tx.id);
     }
   }
 
   private static async deleteTransactionNowOrQueue(txId: string, explicitUserId?: string): Promise<void> {
     if (!CloudSyncService.isConfigured()) return;
     const userId = explicitUserId || (await this.getActiveUserId());
-    const res = await CloudSyncService.deleteCloudTransaction(txId, userId);
-    if (!res.success && userId) {
+    if (userId) {
       await CloudSyncService.enqueueOperation('transactions', txId, 'delete', userId);
+    }
+    const res = await CloudSyncService.deleteCloudTransaction(txId, userId);
+    if (res.success) {
+      await CloudSyncService.clearQueuedOperation('transactions', txId);
     }
   }
 
@@ -67,9 +74,10 @@ export class LedgerRepository {
     const userId = explicitUserId || cat.userId || (await this.getActiveUserId());
     if (!userId) return;
 
+    await CloudSyncService.enqueueOperation('categories', cat.id, 'upsert', userId);
     const res = await CloudSyncService.syncCategory({ ...cat, userId }, userId);
-    if (!res.success) {
-      await CloudSyncService.enqueueOperation('categories', cat.id, 'upsert', userId);
+    if (res.success) {
+      await CloudSyncService.clearQueuedOperation('categories', cat.id);
     }
   }
 
@@ -91,6 +99,7 @@ export class LedgerRepository {
    * Creates a transaction and automatically logs an undo action + syncs with cloud.
    */
   static async createTransaction(tx: Transaction): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const userId = tx.userId || (await this.getActiveUserId());
     const finalTx: Transaction = {
       ...tx,
@@ -106,12 +115,14 @@ export class LedgerRepository {
     historyManager.push({
       description: `Create ${finalTx.type}: ${finalTx.merchant}`,
       undo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
         await db.transactions.delete(finalTx.id);
         await recalculateAllAccountBalances();
         await this.deleteTransactionNowOrQueue(finalTx.id, userId);
         await this.syncAffectedAccounts([finalTx.accountId, finalTx.toAccountId], userId);
       },
       redo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
         await db.transactions.add(finalTx);
         await recalculateAllAccountBalances();
         await this.syncTransactionNowOrQueue(finalTx, userId);
@@ -123,6 +134,7 @@ export class LedgerRepository {
    * Updates an existing transaction and logs undo action with previous state + syncs with cloud.
    */
   static async updateTransaction(updatedTx: Transaction): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const existing = await db.transactions.get(updatedTx.id);
     if (!existing) throw new Error(`Transaction ${updatedTx.id} not found`);
 
@@ -146,6 +158,7 @@ export class LedgerRepository {
     historyManager.push({
       description: `Edit transaction: ${finalTx.merchant}`,
       undo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
         await db.transactions.put(existing);
         await recalculateAllAccountBalances();
         await this.syncTransactionNowOrQueue(existing, userId);
@@ -155,6 +168,7 @@ export class LedgerRepository {
         );
       },
       redo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
         await db.transactions.put(finalTx);
         await recalculateAllAccountBalances();
         await this.syncTransactionNowOrQueue(finalTx, userId);
@@ -170,6 +184,7 @@ export class LedgerRepository {
    * Deletes a transaction and logs undo action to restore it + syncs with cloud.
    */
   static async deleteTransaction(id: string): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const existing = await db.transactions.get(id);
     if (!existing) return;
 
@@ -183,11 +198,13 @@ export class LedgerRepository {
     historyManager.push({
       description: `Delete ${existing.merchant}`,
       undo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
         await db.transactions.add(existing);
         await recalculateAllAccountBalances();
         await this.syncTransactionNowOrQueue(existing, userId);
       },
       redo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
         await db.transactions.delete(id);
         await recalculateAllAccountBalances();
         await this.deleteTransactionNowOrQueue(id, userId);
@@ -200,20 +217,27 @@ export class LedgerRepository {
    * Bulk deletes transactions with single grouped undo action + syncs with cloud.
    */
   static async bulkDelete(ids: string[]): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const items = await db.transactions.where('id').anyOf(ids).toArray();
     if (items.length === 0) return;
 
     const userId = await this.getActiveUserId();
     const affectedAccounts = items.flatMap((i) => [i.accountId, i.toAccountId]);
 
+    if (CloudSyncService.isConfigured() && userId) {
+      for (const id of ids) {
+        await CloudSyncService.enqueueOperation('transactions', id, 'delete', userId);
+      }
+    }
+
     await db.transactions.bulkDelete(ids);
     await recalculateAllAccountBalances();
 
     if (CloudSyncService.isConfigured()) {
       const delRes = await CloudSyncService.deleteCloudTransactionsBatch(ids, userId);
-      if (!delRes.success && userId) {
+      if (delRes.success) {
         for (const id of ids) {
-          await CloudSyncService.enqueueOperation('transactions', id, 'delete', userId);
+          await CloudSyncService.clearQueuedOperation('transactions', id);
         }
       }
       await this.syncAffectedAccounts(affectedAccounts, userId);
@@ -222,21 +246,38 @@ export class LedgerRepository {
     historyManager.push({
       description: `Bulk delete ${items.length} transactions`,
       undo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
+        if (CloudSyncService.isConfigured() && userId) {
+          for (const item of items) {
+            await CloudSyncService.enqueueOperation('transactions', item.id, 'upsert', userId);
+          }
+        }
         await db.transactions.bulkAdd(items);
         await recalculateAllAccountBalances();
         if (CloudSyncService.isConfigured() && userId) {
           await this.syncAffectedAccounts(affectedAccounts, userId);
-          await CloudSyncService.syncTransactionsBatch(items, userId);
+          const restoreRes = await CloudSyncService.syncTransactionsBatch(items, userId);
+          if (restoreRes.success) {
+            for (const item of items) {
+              await CloudSyncService.clearQueuedOperation('transactions', item.id);
+            }
+          }
         }
       },
       redo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
+        if (CloudSyncService.isConfigured() && userId) {
+          for (const id of ids) {
+            await CloudSyncService.enqueueOperation('transactions', id, 'delete', userId);
+          }
+        }
         await db.transactions.bulkDelete(ids);
         await recalculateAllAccountBalances();
         if (CloudSyncService.isConfigured()) {
           const delRes = await CloudSyncService.deleteCloudTransactionsBatch(ids, userId);
-          if (!delRes.success && userId) {
+          if (delRes.success) {
             for (const id of ids) {
-              await CloudSyncService.enqueueOperation('transactions', id, 'delete', userId);
+              await CloudSyncService.clearQueuedOperation('transactions', id);
             }
           }
           await this.syncAffectedAccounts(affectedAccounts, userId);
@@ -255,6 +296,7 @@ export class LedgerRepository {
       removeTag?: string;
     }
   ): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const items = await db.transactions.where('id').anyOf(ids).toArray();
     if (items.length === 0) return;
 
@@ -276,29 +318,62 @@ export class LedgerRepository {
       return updated;
     });
 
+    if (CloudSyncService.isConfigured() && userId) {
+      for (const item of modifiedItems) {
+        await CloudSyncService.enqueueOperation('transactions', item.id, 'upsert', userId);
+      }
+    }
+
     await db.transactions.bulkPut(modifiedItems);
     await recalculateAllAccountBalances();
 
     if (CloudSyncService.isConfigured() && userId) {
       const affected = modifiedItems.flatMap((t) => [t.accountId, t.toAccountId]);
       await this.syncAffectedAccounts(affected, userId);
-      await CloudSyncService.syncTransactionsBatch(modifiedItems, userId);
+      const updRes = await CloudSyncService.syncTransactionsBatch(modifiedItems, userId);
+      if (updRes.success) {
+        for (const item of modifiedItems) {
+          await CloudSyncService.clearQueuedOperation('transactions', item.id);
+        }
+      }
     }
 
     historyManager.push({
       description: `Bulk update ${items.length} transactions`,
       undo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
+        if (CloudSyncService.isConfigured() && userId) {
+          for (const item of originalItems) {
+            await CloudSyncService.enqueueOperation('transactions', item.id, 'upsert', userId);
+          }
+        }
         await db.transactions.bulkPut(originalItems);
         await recalculateAllAccountBalances();
         if (CloudSyncService.isConfigured() && userId) {
-          await CloudSyncService.syncTransactionsBatch(originalItems, userId);
+          const undoRes = await CloudSyncService.syncTransactionsBatch(originalItems, userId);
+          if (undoRes.success) {
+            for (const item of originalItems) {
+              await CloudSyncService.clearQueuedOperation('transactions', item.id);
+            }
+          }
         }
       },
       redo: async () => {
+        CloudSyncService.bumpLocalMutationEpoch();
+        if (CloudSyncService.isConfigured() && userId) {
+          for (const item of modifiedItems) {
+            await CloudSyncService.enqueueOperation('transactions', item.id, 'upsert', userId);
+          }
+        }
         await db.transactions.bulkPut(modifiedItems);
         await recalculateAllAccountBalances();
         if (CloudSyncService.isConfigured() && userId) {
-          await CloudSyncService.syncTransactionsBatch(modifiedItems, userId);
+          const redoRes = await CloudSyncService.syncTransactionsBatch(modifiedItems, userId);
+          if (redoRes.success) {
+            for (const item of modifiedItems) {
+              await CloudSyncService.clearQueuedOperation('transactions', item.id);
+            }
+          }
         }
       },
     });
@@ -374,8 +449,9 @@ export class LedgerRepository {
     });
   }
 
-  // Account operations (synced immediately to Supabase)
+  // Account operations (synced immediately to Supabase via transactional outbox)
   static async createAccount(acc: Account): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const userId = acc.userId || (await this.getActiveUserId());
     const finalAcc: Account = {
       ...acc,
@@ -389,6 +465,7 @@ export class LedgerRepository {
   }
 
   static async updateAccount(acc: Account): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const existing = await db.accounts.get(acc.id);
     const userId = acc.userId || existing?.userId || (await this.getActiveUserId());
     const finalAcc: Account = {
@@ -402,11 +479,13 @@ export class LedgerRepository {
   }
 
   static async archiveAccount(id: string, isArchived: boolean): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     await db.accounts.update(id, { isArchived, updatedAt: new Date().toISOString() });
     await this.syncAccountNowOrQueue(id);
   }
 
   static async deleteAccount(id: string): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const existing = await db.accounts.get(id);
     const userId = existing?.userId || (await this.getActiveUserId());
 
@@ -419,6 +498,10 @@ export class LedgerRepository {
       ].filter((accId): accId is string => Boolean(accId && accId !== id)))
     );
 
+    if (CloudSyncService.isConfigured() && userId) {
+      await CloudSyncService.enqueueOperation('accounts', id, 'delete', userId);
+    }
+
     await db.transactions.where('accountId').equals(id).delete();
     await db.transactions.where('toAccountId').equals(id).delete();
     await db.accounts.delete(id);
@@ -426,15 +509,16 @@ export class LedgerRepository {
 
     if (CloudSyncService.isConfigured()) {
       const delRes = await CloudSyncService.deleteCloudAccount(id, userId);
-      if (!delRes.success && userId) {
-        await CloudSyncService.enqueueOperation('accounts', id, 'delete', userId);
+      if (delRes.success) {
+        await CloudSyncService.clearQueuedOperation('accounts', id);
       }
       await this.syncAffectedAccounts(affectedOtherAccounts, userId);
     }
   }
 
-  // Categories (custom categories synced immediately to Supabase)
+  // Categories (custom categories synced immediately to Supabase via transactional outbox)
   static async createCategory(cat: Category): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const userId = cat.userId || (await this.getActiveUserId());
     const finalCat: Category = {
       ...cat,
@@ -446,6 +530,7 @@ export class LedgerRepository {
   }
 
   static async updateCategory(cat: Category): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const userId = cat.userId || (await this.getActiveUserId());
     const finalCat: Category = {
       ...cat,
@@ -456,16 +541,21 @@ export class LedgerRepository {
   }
 
   static async deleteCategory(id: string): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const existing = await db.categories.get(id);
     const userId = existing?.userId || (await this.getActiveUserId());
+
+    if (CloudSyncService.isConfigured() && !existing?.isSystem && userId) {
+      await CloudSyncService.enqueueOperation('categories', id, 'delete', userId);
+    }
 
     await db.categories.where('parentId').equals(id).delete();
     await db.categories.delete(id);
 
     if (CloudSyncService.isConfigured() && !existing?.isSystem) {
       const res = await CloudSyncService.deleteCloudCategory(id, userId);
-      if (!res.success && userId) {
-        await CloudSyncService.enqueueOperation('categories', id, 'delete', userId);
+      if (res.success) {
+        await CloudSyncService.clearQueuedOperation('categories', id);
       }
     }
   }
@@ -620,6 +710,7 @@ export class LedgerRepository {
   }
 
   static async updateUserPin(userId: string, newPin: string): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     if (CloudSyncService.isConfigured()) {
       await CloudSyncService.updateUserPin(userId, newPin);
     }
@@ -642,6 +733,7 @@ export class LedgerRepository {
   }
 
   static async updateUserRole(userId: string, role: 'admin' | 'user'): Promise<void> {
+    CloudSyncService.bumpLocalMutationEpoch();
     if (CloudSyncService.isConfigured()) {
       await CloudSyncService.updateUserRole(userId, role);
     }
@@ -712,6 +804,7 @@ export class LedgerRepository {
    * Device-to-Device Data Transfer: Imports ledger and user profile from portable JSON and pushes to cloud.
    */
   static async importAllData(jsonString: string): Promise<{ success: boolean; accountsCount: number; txCount: number }> {
+    CloudSyncService.bumpLocalMutationEpoch();
     const data = JSON.parse(jsonString);
     if (!data || typeof data !== 'object') {
       throw new Error('Invalid backup file format');

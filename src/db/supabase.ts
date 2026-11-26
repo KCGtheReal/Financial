@@ -73,6 +73,18 @@ export class CloudSyncService {
   // Serialize concurrent syncWithCloud calls per user
   private static activeSyncs = new Map<string, Promise<{ success: boolean; error?: string }>>();
 
+  // Optimistic concurrency fence & snapshot update serialization
+  private static localMutationEpoch = 0;
+  private static snapshotMutex: Promise<void> = Promise.resolve();
+
+  static bumpLocalMutationEpoch(): void {
+    this.localMutationEpoch += 1;
+  }
+
+  static hasMissingExtendedColumns(): boolean {
+    return !this.usersHasExtendedCols || !this.accountsHasExtendedCols || !this.transactionsHasExtendedCols;
+  }
+
   /**
    * Check if Cloud Sync is active and reachable
    */
@@ -214,6 +226,12 @@ export class CloudSyncService {
     }
   }
 
+  private static runSnapshotSerialized<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.snapshotMutex.then(fn, fn);
+    this.snapshotMutex = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
   private static async getSyncedSnapshot(userId: string): Promise<SyncedIdsSnapshot> {
     const rec = await db.settings.get(`cloudSyncedState_${userId}`);
     if (rec?.value) {
@@ -228,26 +246,32 @@ export class CloudSyncService {
   }
 
   private static async saveSyncedSnapshot(userId: string, snapshot: SyncedIdsSnapshot): Promise<void> {
-    await db.settings.put({ key: `cloudSyncedState_${userId}`, value: snapshot });
+    await this.runSnapshotSerialized(() =>
+      db.settings.put({ key: `cloudSyncedState_${userId}`, value: snapshot })
+    );
   }
 
   static async markEntitySynced(table: SyncEntityTable, entityId: string, userId: string): Promise<void> {
     if (!userId) return;
-    const snap = await this.getSyncedSnapshot(userId);
-    const list = snap[table];
-    if (!list.includes(entityId)) {
-      list.push(entityId);
-      snap.lastSyncAt = new Date().toISOString();
-      await this.saveSyncedSnapshot(userId, snap);
-    }
+    await this.runSnapshotSerialized(async () => {
+      const snap = await this.getSyncedSnapshot(userId);
+      const list = snap[table];
+      if (!list.includes(entityId)) {
+        list.push(entityId);
+        snap.lastSyncAt = new Date().toISOString();
+        await db.settings.put({ key: `cloudSyncedState_${userId}`, value: snap });
+      }
+    });
   }
 
   static async unmarkEntitySynced(table: SyncEntityTable, entityId: string, userId: string): Promise<void> {
     if (!userId) return;
-    const snap = await this.getSyncedSnapshot(userId);
-    snap[table] = snap[table].filter((id) => id !== entityId);
-    snap.lastSyncAt = new Date().toISOString();
-    await this.saveSyncedSnapshot(userId, snap);
+    await this.runSnapshotSerialized(async () => {
+      const snap = await this.getSyncedSnapshot(userId);
+      snap[table] = snap[table].filter((id) => id !== entityId);
+      snap.lastSyncAt = new Date().toISOString();
+      await db.settings.put({ key: `cloudSyncedState_${userId}`, value: snap });
+    });
   }
 
   /**
@@ -516,7 +540,8 @@ export class CloudSyncService {
    */
   static async syncWithCloud(
     userId: string,
-    options?: { onProfileUpdated?: (profile: UserProfile) => void }
+    options?: { onProfileUpdated?: (profile: UserProfile) => void },
+    _retryDepth = 0
   ): Promise<{ success: boolean; error?: string }> {
     if (!supabase || !userId) return { success: false, error: 'Cloud sync is not configured' };
 
@@ -525,9 +550,11 @@ export class CloudSyncService {
       return existing;
     }
 
+    let needsRestartForConcurrentSave = false;
     const runPromise = (async (): Promise<{ success: boolean; error?: string }> => {
       try {
         await db.settings.put({ key: 'activeCloudUserId', value: userId });
+        const epochAtStart = this.localMutationEpoch;
 
         // 1. Flush queued operations in strict FK order:
         //    Upserts: accounts -> categories -> transactions
@@ -573,15 +600,15 @@ export class CloudSyncService {
         }
 
         for (const item of deletes.filter((q) => q.table === 'transactions')) {
-          const res = await this.deleteCloudTransaction(item.entityId);
+          const res = await this.deleteCloudTransaction(item.entityId, userId);
           if (res.success) await this.clearQueuedOperation('transactions', item.entityId);
         }
         for (const item of deletes.filter((q) => q.table === 'categories')) {
-          const res = await this.deleteCloudCategory(item.entityId);
+          const res = await this.deleteCloudCategory(item.entityId, userId);
           if (res.success) await this.clearQueuedOperation('categories', item.entityId);
         }
         for (const item of deletes.filter((q) => q.table === 'accounts')) {
-          const res = await this.deleteCloudAccount(item.entityId);
+          const res = await this.deleteCloudAccount(item.entityId, userId);
           if (res.success) await this.clearQueuedOperation('accounts', item.entityId);
         }
 
@@ -622,7 +649,7 @@ export class CloudSyncService {
 
           const cloudTs = toTimestampMs(cloudUser.updatedAt);
           const localTs = toTimestampMs(localProfile.updatedAt);
-          if (cloudTs > localTs || cloudUser.role !== localProfile.role) {
+          if (cloudTs > localTs) {
             const mergedProfile: UserProfile = {
               ...localProfile,
               ...cloudUser,
@@ -633,7 +660,13 @@ export class CloudSyncService {
             await db.users.put(mergedProfile);
             options?.onProfileUpdated?.(mergedProfile);
           } else if (localTs > cloudTs) {
-            await this.saveOrUpdateUser(localProfile);
+            const profileToPush: UserProfile = { ...localProfile, role: cloudUser.role };
+            await this.saveOrUpdateUser(profileToPush);
+          } else if (cloudUser.role !== localProfile.role) {
+            const roleSyncedProfile: UserProfile = { ...localProfile, role: cloudUser.role };
+            await db.settings.put({ key: 'userProfile', value: roleSyncedProfile });
+            await db.users.put(roleSyncedProfile);
+            options?.onProfileUpdated?.(roleSyncedProfile);
           }
         }
 
@@ -648,6 +681,12 @@ export class CloudSyncService {
           const msg = accRes.error?.message || catRes.error?.message || txRes.error?.message || 'Fetch error';
           console.error('Cloud fetch error during sync:', msg);
           return { success: false, error: msg };
+        }
+
+        // If user saved/edited/deleted locally while network fetch was in flight, avoid merging stale cloud state; re-run cleanly
+        if (this.localMutationEpoch !== epochAtStart && _retryDepth < 2) {
+          needsRestartForConcurrentSave = true;
+          return { success: true };
         }
 
         const cloudAccountsRaw = accRes.data || [];
@@ -736,6 +775,7 @@ export class CloudSyncService {
           }
         }
 
+        let pushedAccountsOk = true;
         if (accountIdsToDeleteLocally.length > 0) {
           await db.accounts.bulkDelete(accountIdsToDeleteLocally);
         }
@@ -745,7 +785,8 @@ export class CloudSyncService {
         if (accountsToPush.length > 0) {
           // Ensure local records store ownership userId
           await db.accounts.bulkPut(accountsToPush);
-          await this.syncAccountsBatch(accountsToPush, userId);
+          const accPushRes = await this.syncAccountsBatch(accountsToPush, userId);
+          pushedAccountsOk = accPushRes.success;
         }
 
         // ============================================================
@@ -763,11 +804,34 @@ export class CloudSyncService {
         for (const localCat of customLocalCats) {
           const qKey = `categories:${localCat.id}`;
           if (remainingQueueIds.has(qKey)) continue;
-          if (!cloudCatMap.has(localCat.id)) {
+          const cloudRow: any = cloudCatMap.get(localCat.id);
+          if (!cloudRow) {
             if (prevSyncedCatSet.has(localCat.id)) {
               catIdsToDeleteLocally.push(localCat.id);
             } else {
               catsToPush.push({ ...localCat, userId });
+            }
+          } else {
+            const differs =
+              localCat.name !== cloudRow.name ||
+              localCat.type !== cloudRow.type ||
+              localCat.icon !== cloudRow.icon ||
+              localCat.color !== cloudRow.color ||
+              (localCat.parentId || null) !== (cloudRow.parent_id || null) ||
+              Number(localCat.order ?? 0) !== Number(cloudRow.order ?? 0);
+            if (differs) {
+              catsToSaveLocally.push({
+                id: cloudRow.id,
+                userId,
+                name: cloudRow.name,
+                type: cloudRow.type,
+                icon: cloudRow.icon,
+                color: cloudRow.color,
+                parentId: cloudRow.parent_id || undefined,
+                order: Number(cloudRow.order ?? 0),
+                isSystem: Boolean(cloudRow.is_system),
+                createdAt: cloudRow.created_at,
+              });
             }
           }
         }
@@ -791,6 +855,7 @@ export class CloudSyncService {
           }
         }
 
+        let pushedCatsOk = true;
         if (catIdsToDeleteLocally.length > 0) {
           await db.categories.bulkDelete(catIdsToDeleteLocally);
         }
@@ -799,7 +864,8 @@ export class CloudSyncService {
         }
         if (catsToPush.length > 0) {
           await db.categories.bulkPut(catsToPush);
-          await this.syncCategoriesBatch(catsToPush, userId);
+          const catPushRes = await this.syncCategoriesBatch(catsToPush, userId);
+          pushedCatsOk = catPushRes.success;
         }
 
         // ============================================================
@@ -849,7 +915,7 @@ export class CloudSyncService {
                 paymentMethod: (cloudRow.payment_method || 'cash') as any,
                 splits: cloudRow.splits !== undefined
                   ? (Array.isArray(cloudRow.splits) ? cloudRow.splits : undefined)
-                  : localTx.splits,
+                  : (cloudRow.is_split === false ? undefined : localTx.splits),
                 attachmentData: cloudRow.attachment_data !== undefined
                   ? (cloudRow.attachment_data || undefined)
                   : localTx.attachmentData,
@@ -894,6 +960,7 @@ export class CloudSyncService {
           }
         }
 
+        let pushedTxsOk = true;
         if (txIdsToDeleteLocally.length > 0) {
           await db.transactions.bulkDelete(txIdsToDeleteLocally);
         }
@@ -902,7 +969,8 @@ export class CloudSyncService {
         }
         if (txsToPush.length > 0) {
           await db.transactions.bulkPut(txsToPush);
-          await this.syncTransactionsBatch(txsToPush, userId);
+          const txPushRes = await this.syncTransactionsBatch(txsToPush, userId);
+          pushedTxsOk = txPushRes.success;
         }
 
         // Also clean up any local transactions pointing to accounts deleted in cloud
@@ -914,32 +982,36 @@ export class CloudSyncService {
         // 7. Recompute exact local account balances without changing timestamps on unchanged accounts
         await recalculateAllAccountBalances();
 
-        // 8. Persist updated synced ID snapshot
+        // 8. Persist updated synced ID snapshot (ONLY mark pushed items synced when batch upload actually succeeded!)
         const nextAccIds = Array.from(
           new Set([
             ...cloudAccountsRaw.map((a: any) => a.id),
-            ...accountsToPush.map((a) => a.id),
+            ...(pushedAccountsOk ? accountsToPush.map((a) => a.id) : []),
           ])
         );
         const nextCatIds = Array.from(
           new Set([
             ...cloudCategoriesRaw.map((c: any) => c.id),
-            ...catsToPush.map((c) => c.id),
+            ...(pushedCatsOk ? catsToPush.map((c) => c.id) : []),
           ])
         );
         const nextTxIds = Array.from(
           new Set([
             ...cloudTxsRaw.map((t: any) => t.id),
-            ...txsToPush.map((t) => t.id),
+            ...(pushedTxsOk ? txsToPush.map((t) => t.id) : []),
           ])
         );
 
-        await this.saveSyncedSnapshot(userId, {
-          accounts: nextAccIds,
-          categories: nextCatIds,
-          transactions: nextTxIds,
-          lastSyncAt: new Date().toISOString(),
-        });
+        if (this.localMutationEpoch === epochAtStart) {
+          await this.saveSyncedSnapshot(userId, {
+            accounts: nextAccIds,
+            categories: nextCatIds,
+            transactions: nextTxIds,
+            lastSyncAt: new Date().toISOString(),
+          });
+        } else if (_retryDepth < 2) {
+          needsRestartForConcurrentSave = true;
+        }
 
         return { success: true };
       } catch (err: any) {
@@ -951,7 +1023,11 @@ export class CloudSyncService {
     })();
 
     this.activeSyncs.set(userId, runPromise);
-    return runPromise;
+    const result = await runPromise;
+    if (needsRestartForConcurrentSave) {
+      return this.syncWithCloud(userId, options, _retryDepth + 1);
+    }
+    return result;
   }
 
   /**
