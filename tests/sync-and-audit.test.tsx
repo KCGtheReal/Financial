@@ -7,6 +7,7 @@ import { PullToRefresh } from '../src/components/common/PullToRefresh';
 import { AuthModal } from '../src/components/auth/AuthModal';
 import { AccountModal } from '../src/components/ledger/AccountModal';
 import { Header } from '../src/components/layout/Header';
+import { ConfirmModal } from '../src/components/common/ConfirmModal';
 import { db, DEFAULT_CATEGORIES, recalculateAllAccountBalances } from '../src/db/db';
 import { LedgerRepository } from '../src/db/repository';
 import {
@@ -873,5 +874,40 @@ describe('Pre-Launch Audit & Multi-Device Sync Regressions', () => {
       expect(useAppStore.getState().userProfile?.isLoggedIn).toBe(false);
       expect(useAppStore.getState().selectedAccountId).toBeNull();
     });
+  });
+
+  it('plays enter and exit animations on ConfirmModal before unmounting', async () => {
+    const onClose = vi.fn();
+    const onConfirm = vi.fn();
+
+    render(
+      <ConfirmModal
+        isOpen={true}
+        onClose={onClose}
+        onConfirm={onConfirm}
+        title="Delete Item"
+        message="Confirm deletion?"
+      />
+    );
+
+    const card = screen.getByTestId('confirm-modal-card');
+    const backdrop = screen.getByTestId('confirm-modal-backdrop');
+    expect(card.className).toContain('popup-enter');
+    expect(backdrop.className).toContain('backdrop-enter');
+
+    fireEvent.click(screen.getByTestId('confirm-modal-cancel'));
+
+    // Immediately transitions into exit classes while staying mounted during the 190ms exit animation
+    expect(screen.getByTestId('confirm-modal-card').className).toContain('popup-exit');
+    expect(screen.getByTestId('confirm-modal-backdrop').className).toContain('backdrop-exit');
+    expect(onClose).not.toHaveBeenCalled();
+
+    await waitFor(
+      () => {
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(screen.queryByTestId('confirm-modal')).toBeNull();
+      },
+      { timeout: 600 }
+    );
   });
 });

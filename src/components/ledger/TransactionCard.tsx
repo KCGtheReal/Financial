@@ -245,21 +245,19 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
         </Modal>
       )}
 
-      {isDeleteConfirmOpen && (
-        <ConfirmModal
-          isOpen={isDeleteConfirmOpen}
-          onClose={() => setIsDeleteConfirmOpen(false)}
-          onConfirm={executeDelete}
-          title={language === 'km' ? 'លុបប្រតិបត្តិការ' : 'Delete Transaction'}
-          message={
-            language === 'km'
-              ? `តើអ្នកពិតជាចង់លុប "${tx.merchant}" មែនទេ? អ្នកអាចត្រឡប់វិញបាន។`
-              : `Delete transaction "${tx.merchant}"? You can undo this with Ctrl+Z.`
-          }
-          confirmLabel={t('delete', language)}
-          tone="danger"
-        />
-      )}
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={executeDelete}
+        title={language === 'km' ? 'លុបប្រតិបត្តិការ' : 'Delete Transaction'}
+        message={
+          language === 'km'
+            ? `តើអ្នកពិតជាចង់លុប "${tx.merchant}" មែនទេ? អ្នកអាចត្រឡប់វិញបាន។`
+            : `Delete transaction "${tx.merchant}"? You can undo this with Ctrl+Z.`
+        }
+        confirmLabel={t('delete', language)}
+        tone="danger"
+      />
     </div>
   );
 };
